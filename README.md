@@ -14,7 +14,6 @@
     <img src="https://img.shields.io/badge/MASt3R-ECCV%202024-green" alt="MASt3R">
     <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
     <img src="https://img.shields.io/badge/Python-3.10%2B-orange" alt="Python">
-   
   </p>
 </p>
 
@@ -145,7 +144,7 @@ python test_super.py
 3. Click **Create Index**
 4. Wait. For 1km radius, expect ~20-30 minutes. For 5km, a few hours. For 10km, overnight.
 
-What's happening under the hood: the app generates a grid of points within the radius, queries Google's Street View coverage to find all available panorama locations, downloads each panorama as tiles and stitches them, crops each panorama at multiple heading angles, extracts MegaLoc descriptors for each crop, fits PCA on all descriptors, and builds a compact search index.
+What's happening under the hood: the app generates a grid of points within the radius, finds all available panorama locations, downloads each panorama as tiles and stitches them, crops each panorama at multiple heading angles, extracts MegaLoc descriptors for each crop, fits PCA on all descriptors, and builds a compact search index.
 
 ### Option C: Import an index file from someone
 
@@ -219,19 +218,23 @@ python netryx_hub.py import moscow_1km.netryx -o ./netryx_data/index
 
 ### Quick setup (recommended)
 
+**Mac / Linux:**
 ```bash
 git clone https://github.com/yourusername/netryx-astra-v2.git
 cd netryx-astra-v2
-chmod +x setup.sh
-./setup.sh
-```
-
-That's it. The setup script creates a virtual environment, installs all dependencies, clones MASt3R alongside the repo, and pre-downloads the model weights. When it's done:
-
-```bash
+chmod +x setup.sh && ./setup.sh
 source venv/bin/activate
 python3 test_super.py
 ```
+
+**Windows:**
+```
+git clone https://github.com/yourusername/netryx-astra-v2.git
+cd netryx-astra-v2
+```
+Then double-click **`setup.bat`** to install everything. When it finishes, double-click **`run.bat`** to launch.
+
+That's it. The setup script creates a virtual environment, installs all dependencies, clones MASt3R alongside the repo, and pre-downloads the model weights. No manual configuration needed.
 
 ### What you need
 
@@ -352,7 +355,7 @@ We believe in being upfront about what this tool can and can't do.
 
 **Repetitive architecture causes false positives.** Chain stores, suburban housing developments, rows of identical apartment blocks — these genuinely look the same from street level. Spatial consensus helps (a cluster of nearby matches beats a single isolated outlier), but it's not bulletproof, especially at large search radii (10km+) where there are more look-alike candidates. This is an unsolved problem in the field, not a limitation specific to Netryx.
 
-
+**Coverage gaps exist in some areas.** Rural areas, developing countries, newly built neighborhoods, and indoor spaces may have limited or no street-level imagery available for indexing.
 
 **This is not a real-time system.** Running MASt3R on 500 candidates takes several minutes on a consumer GPU. This is designed for forensic analysis — investigative journalism, human rights documentation, OSINT research, insurance fraud investigation — not for navigation or live tracking.
 
