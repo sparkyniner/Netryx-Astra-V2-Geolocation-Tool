@@ -161,7 +161,7 @@ def get_mast3r_matches(query_pil, db_pil, model=None, confidence_threshold=0.3):
     if model is None:
         model = get_mast3r_model()
     if model is None:
-        return np.array([]), np.array([]), np.array([])
+        return np.array([]).reshape(0, 2), np.array([]).reshape(0, 2), np.array([])
     
     dev = next(model.parameters()).device
     
@@ -171,8 +171,9 @@ def get_mast3r_matches(query_pil, db_pil, model=None, confidence_threshold=0.3):
     img2['instance'] = '1'
     img2['idx'] = 1
     
-    img1 = {k: v.to(dev) for k, v in img1.items()}
-    img2 = {k: v.to(dev) for k, v in img2.items()}
+    # Only move tensors to device — leave strings and ints as-is
+    img1 = {k: v.to(dev) if isinstance(v, torch.Tensor) else v for k, v in img1.items()}
+    img2 = {k: v.to(dev) if isinstance(v, torch.Tensor) else v for k, v in img2.items()}
     
     try:
         with torch.no_grad():
