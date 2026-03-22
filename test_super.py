@@ -1964,10 +1964,10 @@ class StreetViewMatcherGUI:
         search_entry.insert(0, "Search by city name...")
         search_entry.bind('<FocusIn>', lambda e: search_entry.delete(0, 'end') if search_entry.get() == "Search by city name..." else None)
 
-        search_btn = tk.Button(search_frame, text="Search", font=('Inter', 10, 'bold'),
-                               bg='#8b5cf6', fg='white', borderwidth=0, padx=20, pady=6,
-                               command=lambda: self._hub_search(hub_win))
-        search_btn.pack(side='right')
+        self.search_btn = RoundedButton(search_frame, text="Search",
+                                       command=lambda: self._hub_search(hub_win),
+                                       width=100, height=36, corner_radius=10)
+        self.search_btn.pack(side='right')
 
         # Results list
         list_frame = tk.Frame(hub_win, bg='#12121a')
@@ -1989,15 +1989,16 @@ class StreetViewMatcherGUI:
         bottom = tk.Frame(hub_win, bg='#0a0a0f')
         bottom.pack(fill='x', padx=20, pady=(0, 20))
 
-        dl_btn = tk.Button(bottom, text="⬇ Download Selected", font=('Inter', 11, 'bold'),
-                           bg='#8b5cf6', fg='white', borderwidth=0, padx=20, pady=8,
-                           command=lambda: self._hub_download(hub_win))
-        dl_btn.pack(side='left')
+        self.dl_btn = RoundedButton(bottom, text="⬇ Download",
+                                   command=lambda: self._hub_download(hub_win),
+                                   width=160, height=40)
+        self.dl_btn.pack(side='left')
 
-        upload_btn = tk.Button(bottom, text="⬆ Upload Current Index", font=('Inter', 11, 'bold'),
-                               bg='#1e3a5f', fg='white', borderwidth=0, padx=20, pady=8,
-                               command=lambda: self._hub_upload(hub_win))
-        upload_btn.pack(side='right')
+        self.up_btn = RoundedButton(bottom, text="⬆ Upload Index",
+                                   command=lambda: self._hub_upload(hub_win),
+                                   width=165, height=40, bg_color='#1e3a5f',
+                                   hover_color='#2d4a6f', pressed_color='#0f2a4f')
+        self.up_btn.pack(side='right')
 
         self._hub_status = tk.Label(bottom, text="", font=('Avenir Next', 9),
                                      bg='#0a0a0f', fg='#6b7280')
@@ -2173,9 +2174,10 @@ class StreetViewMatcherGUI:
 
             threading.Thread(target=upload_thread, daemon=True).start()
 
-        tk.Button(upload_win, text="⬆ Upload", font=('Inter', 11, 'bold'),
-                  bg='#8b5cf6', fg='white', borderwidth=0, padx=30, pady=8,
-                  command=do_upload).pack(pady=(10, 20))
+        self.final_up_btn = RoundedButton(upload_win, text="⬆  Start Upload",
+                                         command=do_upload,
+                                         width=180, height=42)
+        self.final_up_btn.pack(pady=(10, 20))
 
     def export_index(self):
         if not os.path.exists(COMPACT_DESCS_PATH):
