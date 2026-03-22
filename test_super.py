@@ -47,8 +47,11 @@ extractor_lock = threading.Lock()
 
 try:
     from mast3r_utils import get_mast3r_model, get_mast3r_matches
+    MAST3R_AVAILABLE = True
 except ImportError:
-    pass
+    MAST3R_AVAILABLE = False
+    print("[MASt3R] mast3r_utils.py not found. MASt3R matching disabled.")
+
 
 try:
     from netryx_hub import NetryxHub, create_bundle, extract_bundle
