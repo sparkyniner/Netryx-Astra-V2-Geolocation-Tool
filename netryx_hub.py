@@ -13,7 +13,7 @@ Setup (one time):
     3. Run: huggingface-cli login
     
     OR set the environment variable:
-    export HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxx
+    export HF_TOKEN=
 
 Usage:
     from netryx_hub import NetryxHub
@@ -35,6 +35,7 @@ Usage:
         center_lon=37.6208,
     )
 """
+
 
 import os
 import json
@@ -61,7 +62,7 @@ except ImportError:
 # Configuration
 # ─────────────────────────────────────────────────────────────────
 
-HF_ORG = "netryx-community"  # Hugging Face organization name
+HF_ORG = "netryx-hub"  # Hugging Face organization name
 BUNDLE_FORMAT_VERSION = "2.0"
 BUNDLE_EXTENSION = ".netryx"
 
@@ -323,8 +324,8 @@ class NetryxHub:
     def __init__(self, token=None):
         if not HF_AVAILABLE:
             raise ImportError("Install huggingface_hub: pip install huggingface_hub")
-        self.token = token or os.environ.get("HF_TOKEN")
-        self.api = HfApi(token=self.token)
+        self.token = token
+        self.api = HfApi(token=token)
 
     def list_indexes(self):
         """List all available Netryx indexes on the hub.
@@ -500,7 +501,7 @@ class NetryxHub:
 
     def upload(self, index_dir, city, radius_km, center_lat, center_lon,
                description=None, tags=None, heading_step=90, crop_fov=90,
-               crop_size=256, private=False):
+               crop_size=256, private=False, token=None):
         """Upload a local index to Hugging Face Hub.
         
         Args:
@@ -553,35 +554,37 @@ class NetryxHub:
         # Create HF dataset repo
         print(f"[HUB] Creating repo {repo_id}...")
         try:
-            self.api.create_repo(repo_id=repo_id, repo_type="dataset", private=private, exist_ok=True)
+            create_repo(repo_id=repo_id, repo_type="dataset", private=private, exist_ok=True, token=token or self.token)
         except Exception as e:
             print(f"[HUB] Note: {e}")
 
         # Upload bundle
         print(f"[HUB] Uploading bundle ({manifest['file_size_bytes'] / 1e6:.0f} MB)...")
-        self.api.upload_file(
+        upload_file(
             path_or_fileobj=bundle_path,
             path_in_repo="index.netryx",
             repo_id=repo_id,
             repo_type="dataset",
+            token=token or self.token,
         )
 
         # Upload manifest separately (so list_indexes can read it without downloading the full bundle)
         manifest_path = os.path.join(tempfile.gettempdir(), "manifest.json")
         with open(manifest_path, 'w') as f:
             json.dump(manifest, f, indent=2)
-        self.api.upload_file(
+        upload_file(
             path_or_fileobj=manifest_path,
             path_in_repo="manifest.json",
             repo_id=repo_id,
             repo_type="dataset",
+            token=token or self.token,
         )
 
         # Upload README
         readme_path = os.path.join(tempfile.gettempdir(), "README.md")
         with open(readme_path, 'w') as f:
             f.write(_make_readme(manifest))
-        self.api.upload_file(
+        upload_file(
             path_or_fileobj=readme_path,
             path_in_repo="README.md",
             repo_id=repo_id,
