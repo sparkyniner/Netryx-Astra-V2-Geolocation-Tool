@@ -5,6 +5,9 @@ echo   Netryx Astra V2 - Windows Setup
 echo ===================================================
 echo.
 
+:: Remember where we started
+set "NETRYX_DIR=%~dp0"
+
 :: Check Python
 python --version >nul 2>&1
 if errorlevel 1 (
@@ -15,7 +18,17 @@ if errorlevel 1 (
 )
 echo [OK] Python found
 
+:: Check Git
+git --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Git not found. Download from https://git-scm.com
+    pause
+    exit /b 1
+)
+echo [OK] Git found
+
 :: Create venv
+cd /d "%NETRYX_DIR%"
 if not exist "venv" (
     echo [SETUP] Creating virtual environment...
     python -m venv venv
@@ -33,18 +46,20 @@ echo [OK] Dependencies installed
 
 :: Clone MASt3R
 echo.
-if exist "..\mast3r\mast3r\model.py" (
+if exist "%NETRYX_DIR%..\mast3r\mast3r\model.py" (
     echo [OK] MASt3R already cloned
 ) else (
-    echo [SETUP] Cloning MASt3R (this may take a minute)...
-    cd ..
+    echo [SETUP] Cloning MASt3R (this may take a few minutes)...
+    cd /d "%NETRYX_DIR%.."
     git clone --recursive https://github.com/naver/mast3r.git
     cd mast3r
     pip install -r requirements.txt -q
     pip install -r dust3r\requirements.txt -q
-    cd ..\netryx-astra-v2
     echo [OK] MASt3R installed
 )
+
+:: Return to Netryx directory
+cd /d "%NETRYX_DIR%"
 
 :: Pre-download MegaLoc weights
 echo.
@@ -61,6 +76,7 @@ if errorlevel 1 echo [WARN] MASt3R download failed - will retry on first run
 :: Create data dirs
 mkdir netryx_data\megaloc_parts 2>nul
 mkdir netryx_data\index 2>nul
+echo [OK] Data directories created
 
 :: Done
 echo.
