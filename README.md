@@ -361,17 +361,7 @@ We believe in being upfront about what this tool can and can't do.
 
 **Indexing requires meaningful compute.** MegaLoc's DINOv2 backbone is ~5x heavier than the CosPlace backbone used in V1. Indexing a 1km radius takes ~20-30 minutes. A full city (10km+) is an overnight job. That's why the Community Hub exists — so this cost is paid once and shared.
 
-## Acknowledgements
 
-Netryx Astra V2 stands on the shoulders of some truly exceptional research. We want to give proper credit:
-
-**MegaLoc** — Gabriele Berton, Carlo Masone. *"MegaLoc: One Retrieval to Place Them All."* CVPR Workshops, 2025. The retrieval backbone that makes everything work. Berton's progression from CosPlace → EigenPlaces → MegaLoc has been one of the most impactful arcs in visual place recognition research. We're grateful for the MIT-licensed weights and the clean `torch.hub` integration.
-
-**MASt3R** — Vincent Leroy, Yohann Cabon, Jérôme Revaud (NAVER Labs Europe). *"Grounding Image Matching in 3D with MASt3R."* ECCV, 2024. The insight that matching should be treated as a 3D problem, not a 2D one, is what makes partial image matching actually work. This model changed what we thought was possible.
-
-**DINOv2** — Maxime Oquab et al. (Meta AI). *"DINOv2: Learning Robust Visual Features without Supervision."* TMLR, 2024. The self-supervised foundation model that powers MegaLoc's feature extraction. The fact that this was released open-source is what makes projects like ours possible.
-
-**SALAD** — Sergio Izquierdo, Javier Civera. *"Optimal Transport Aggregation for Visual Place Recognition."* CVPR, 2024. The optimal transport aggregation technique that MegaLoc builds on for its descriptor pipeline.
 
 ## Citation
 
