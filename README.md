@@ -14,12 +14,12 @@
     <img src="https://img.shields.io/badge/MASt3R-ECCV%202024-green" alt="MASt3R">
     <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License">
     <img src="https://img.shields.io/badge/Python-3.10%2B-orange" alt="Python">
-    
+   
   </p>
 </p>
 
 <p align="center">
-  <img src="assets/demo.gif" width="800" alt="Netryx Astra V2 in action">
+  <img src="demo.gif" width="800" alt="Netryx Astra V2 in action">
 </p>
 
 ---
@@ -217,6 +217,22 @@ python netryx_hub.py import moscow_1km.netryx -o ./netryx_data/index
 
 ## Installation
 
+### Quick setup (recommended)
+
+```bash
+git clone https://github.com/yourusername/netryx-astra-v2.git
+cd netryx-astra-v2
+chmod +x setup.sh
+./setup.sh
+```
+
+That's it. The setup script creates a virtual environment, installs all dependencies, clones MASt3R alongside the repo, and pre-downloads the model weights. When it's done:
+
+```bash
+source venv/bin/activate
+python3 test_super.py
+```
+
 ### What you need
 
 - **Python 3.10+**
@@ -335,6 +351,8 @@ We believe in being upfront about what this tool can and can't do.
 **It only finds places that are in the index.** If a location hasn't been indexed by you or downloaded from the community, it won't be found. No model, no matter how advanced, can match against data that doesn't exist. The accuracy ceiling is set by coverage, not by the models.
 
 **Repetitive architecture causes false positives.** Chain stores, suburban housing developments, rows of identical apartment blocks — these genuinely look the same from street level. Spatial consensus helps (a cluster of nearby matches beats a single isolated outlier), but it's not bulletproof, especially at large search radii (10km+) where there are more look-alike candidates. This is an unsolved problem in the field, not a limitation specific to Netryx.
+
+
 
 **This is not a real-time system.** Running MASt3R on 500 candidates takes several minutes on a consumer GPU. This is designed for forensic analysis — investigative journalism, human rights documentation, OSINT research, insurance fraud investigation — not for navigation or live tracking.
 
