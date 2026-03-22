@@ -40,10 +40,19 @@ else:
     print("[MASt3R] ⚠️  MASt3R not found. Clone it alongside this repo:")
     print("[MASt3R]    cd .. && git clone --recursive https://github.com/naver/mast3r.git")
 
-import mast3r.utils.path_to_dust3r
-from mast3r.model import AsymmetricMASt3R
-from dust3r.inference import inference
-from mast3r.fast_nn import fast_reciprocal_NNs
+try:
+    import mast3r.utils.path_to_dust3r
+    from mast3r.model import AsymmetricMASt3R
+    from dust3r.inference import inference
+    from mast3r.fast_nn import fast_reciprocal_NNs
+    _MAST3R_IMPORTS_OK = True
+except Exception as e:
+    _MAST3R_IMPORTS_OK = False
+    print(f"[MASt3R] ❌ Failed to import MASt3R modules: {e}")
+    import traceback
+    traceback.print_exc()
+
+
 
 _mast3r_model = None
 device = 'mps' if torch.backends.mps.is_available() else ('cuda' if torch.cuda.is_available() else 'cpu')
@@ -51,7 +60,9 @@ device = 'mps' if torch.backends.mps.is_available() else ('cuda' if torch.cuda.i
 def get_mast3r_model():
     """Load MASt3R model. Cached after first call."""
     global _mast3r_model
-
+    if not _MAST3R_IMPORTS_OK:
+        print("[MASt3R] Cannot load — modules failed to import")
+        return None
     if _mast3r_model is not None:
         return _mast3r_model
 
