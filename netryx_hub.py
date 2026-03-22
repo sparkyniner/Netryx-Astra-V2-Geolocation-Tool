@@ -238,7 +238,7 @@ def extract_bundle(bundle_path, index_dir):
 
         # Extract with correct filenames for Netryx
         file_mapping = {
-            "descriptors.npy": "cosplace_descriptors.npy",
+            "descriptors.npy": "megaloc_descriptors.npy",
             "metadata.npz": "metadata.npz",
             "pca_model.pkl": "megaloc_pca.pkl",
             "index_info.txt": "index_info.txt",
@@ -469,7 +469,7 @@ class NetryxHub:
         os.makedirs(output_dir, exist_ok=True)
 
         file_mapping = {
-            "descriptors.npy": "cosplace_descriptors.npy",
+            "descriptors.npy": "megaloc_descriptors.npy",
             "metadata.npz": "metadata.npz",
             "pca_model.pkl": "megaloc_pca.pkl",
             "manifest.json": "manifest.json",
