@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="demo.gif" width="800" alt="Netryx Astra V2 in action">
+  <img src="assets/demo.gif" width="800" alt="Netryx Astra V2 in action">
 </p>
 
 ---
