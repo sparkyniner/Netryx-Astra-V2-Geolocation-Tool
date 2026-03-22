@@ -38,9 +38,9 @@ echo [OK] Virtual environment activated
 
 :: Install dependencies
 echo.
-echo [SETUP] Installing Python dependencies (this takes a few minutes)...
-pip install --upgrade pip -q
-pip install -r requirements.txt -q
+echo [SETUP] Installing Python dependencies ^(this takes a few minutes^)...
+python -m pip install --upgrade pip -q
+python -m pip install -r requirements.txt -q
 echo [OK] Dependencies installed
 
 :: Clone MASt3R
@@ -48,12 +48,12 @@ echo.
 if exist "%NETRYX_DIR%..\mast3r\mast3r\model.py" (
     echo [OK] MASt3R already cloned
 ) else (
-    echo [SETUP] Cloning MASt3R (this may take a few minutes)...
+    echo [SETUP] Cloning MASt3R ^(this may take a few minutes^)...
     cd /d "%NETRYX_DIR%.."
     git clone --recursive https://github.com/naver/mast3r.git
     cd /d "%NETRYX_DIR%..\mast3r"
-    pip install -r requirements.txt -q
-    pip install -r dust3r\requirements.txt -q
+    python -m pip install -r requirements.txt -q
+    python -m pip install -r dust3r\requirements.txt -q
     cd /d "%NETRYX_DIR%"
     echo [OK] MASt3R cloned and dependencies installed
 )
@@ -63,13 +63,13 @@ cd /d "%NETRYX_DIR%"
 
 :: Pre-download MegaLoc weights
 echo.
-echo [SETUP] Downloading MegaLoc model weights (first time only)...
+echo [SETUP] Downloading MegaLoc model weights ^(first time only^)...
 python -c "import torch; model = torch.hub.load('gmberton/MegaLoc', 'get_trained_model'); print('[OK] MegaLoc ready')" 2>nul
 if errorlevel 1 echo [WARN] MegaLoc download failed - will retry on first run
 
 :: Pre-download MASt3R weights
 echo.
-echo [SETUP] Downloading MASt3R model weights (~1.2GB, first time only)...
+echo [SETUP] Downloading MASt3R model weights ^(~1.2GB, first time only^)...
 python -c "import sys,os; p=os.path.abspath(os.path.join('%NETRYX_DIR%','..','mast3r')); sys.path.insert(0,p); sys.path.insert(0,os.path.join(p,'dust3r')); from mast3r.model import AsymmetricMASt3R; m=AsymmetricMASt3R.from_pretrained('naver/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric'); print('[OK] MASt3R ready')" 2>nul
 if errorlevel 1 echo [WARN] MASt3R download failed - will retry on first run
 
