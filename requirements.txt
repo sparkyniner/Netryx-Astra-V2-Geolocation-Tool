@@ -3,7 +3,6 @@ torchvision
 numpy
 Pillow
 opencv-python
-kornia
 scikit-learn
 aiohttp
 tkintermapview
