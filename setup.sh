@@ -36,12 +36,7 @@ echo "✅ Virtual environment activated"
 echo ""
 echo "📦 Installing Python dependencies..."
 pip install --upgrade pip -q
-pip install torch torchvision -q
-pip install numpy opencv-python pillow scikit-learn -q
-pip install aiohttp -q
-pip install tkintermapview -q
-pip install huggingface_hub -q
-pip install safetensors -q
+pip install -r requirements.txt -q
 echo "✅ Python dependencies installed"
 
 # ── Clone MASt3R if not present ──
