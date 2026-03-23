@@ -115,7 +115,14 @@ A single outlier with 200 inliers at the wrong location gets outscored by a clus
 
 This is why accuracy holds up even at larger search radii where there are more look-alike locations.
 
+
 ## Getting Started
+
+## Community Hub
+
+This is the part we're most excited about.
+
+Indexing a city takes hours of compute time. It's wasteful for every user to independently index the same city. So we built a sharing system: one person indexes Moscow, uploads the result, and everyone else downloads it in minutes.
 
 ### Option A: Download an existing index and start searching
 
@@ -131,11 +138,7 @@ python test_super.py
 
 Set mode to **Search**, click **Run Search**, and select your query image. The map coordinates and search radius auto-populate from the index metadata.
 
-## Community Hub
 
-This is the part we're most excited about.
-
-Indexing a city takes hours of compute time. It's wasteful for every user to independently index the same city. So we built a sharing system: one person indexes Moscow, uploads the result, and everyone else downloads it in minutes.
 
 ### Option B: Build your own index from scratch
 
