@@ -243,43 +243,7 @@ That's it. The setup script creates a virtual environment, installs all dependen
 - **8GB+ RAM** for searching (16GB+ recommended for indexing large areas)
 - **~2GB disk** per city index
 
-### Step 1: Clone and set up Netryx
 
-```bash
-git clone https://github.com/yourusername/netryx-astra-v2.git
-cd netryx-astra-v2
-
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-pip install torch torchvision
-pip install numpy opencv-python pillow scikit-learn
-pip install aiohttp asyncio
-pip install tkintermapview
-pip install huggingface_hub
-```
-
-MegaLoc loads automatically via `torch.hub` the first time you run the app. No manual download needed.
-
-### Step 2: Set up MASt3R
-
-MASt3R is a separate project with large model files (~1.2GB). **Do not copy it into this repo.** Clone it alongside:
-
-```bash
-cd ..
-git clone --recursive https://github.com/naver/mast3r.git
-cd mast3r
-
-pip install -r requirements.txt
-pip install -r dust3r/requirements.txt
-
-# Optional but recommended on Linux with CUDA:
-cd dust3r/croco/models/curope/
-python setup.py build_ext --inplace
-cd ../../../..
-
-cd ../netryx-astra-v2
-```
 
 MASt3R weights download automatically from Hugging Face on first run.
 
