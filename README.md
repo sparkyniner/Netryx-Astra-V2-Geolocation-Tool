@@ -138,7 +138,7 @@ The fastest way. Someone else already did the indexing work — you just downloa
 
 <img width="706" height="575" alt="Image" src="https://github.com/user-attachments/assets/62881017-733e-42d3-acd8-26d98826914c" />
 
-Set mode to **Search**, click **Run Search**, and select your query image. The map coordinates and search radius auto-populate from the index metadata.
+Set mode to **Search**, click **Run Search**, and select your query image. The map coordinates and search radius auto-populate from the index metadata. This feature only works if the community contributes and supports each other, if you index a region, we will all be greatful if you upload it.
 
 
 
@@ -165,7 +165,7 @@ Got a `.netryx` file from a friend, a Discord server, or a download link? Just c
 
 ### How it works
 
-Indexes are hosted on [Hugging Face Hub](https://huggingface.co/netryx-community) as public datasets. Anyone can download without an account. Contributing (uploading) requires a free Hugging Face account.
+Indexes are hosted on [Hugging Face Hub](https://huggingface.co/netryx-hub) as public datasets. Anyone can download without an account. Contributing (uploading) requires a free Hugging Face account.
 
 **From the GUI:** Click the **🌐 Community Hub** button to browse, search, and download available indexes. Click **⬆ Upload Current Index** to share yours.
 
