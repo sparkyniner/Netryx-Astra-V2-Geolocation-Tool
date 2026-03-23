@@ -2205,7 +2205,7 @@ class StreetViewMatcherGUI:
                     index_dir=COMPACT_INDEX_DIR,
                     output_path=save_path,
                     name=f"Netryx Index {self.radius_var.get()}km",
-                    description="Exported from Netryx Drishti",
+                    description="Exported from Netryx Astra",
                     center_lat=self.lat_var.get(),
                     center_lon=self.lon_var.get(),
                     radius_km=self.radius_var.get(),
@@ -2266,7 +2266,7 @@ class StreetViewMatcherGUI:
 
     def show_help(self):
         help_win = tk.Toplevel(self.master)
-        help_win.title("Netryx Drishti - Technical User Guide")
+        help_win.title("Netryx Astra - Technical User Guide")
         help_win.geometry("850x750")
         help_win.configure(bg='#0a0a0f')
         help_win.transient(self.master)
