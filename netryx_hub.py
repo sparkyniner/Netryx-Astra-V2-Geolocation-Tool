@@ -62,7 +62,7 @@ except ImportError:
 # Configuration
 # ─────────────────────────────────────────────────────────────────
 
-HF_ORG = "netryx-hub"  # Hugging Face organization name
+HF_ORG = None  # No default org — use tags for discovery!
 BUNDLE_FORMAT_VERSION = "2.0"
 BUNDLE_EXTENSION = ".netryx"
 
@@ -261,21 +261,20 @@ def extract_bundle(bundle_path, index_dir):
 # Hugging Face Hub integration
 # ─────────────────────────────────────────────────────────────────
 
-def _make_repo_id(city, radius_km):
+def _make_repo_id(city, radius_km, org=None):
     """Generate a HF repo ID from city name and radius."""
     slug = city.lower().strip().replace(" ", "-").replace(",", "")
-    return f"{HF_ORG}/{slug}-{int(radius_km)}km"
+    name = f"netryx-{slug}-{int(radius_km)}km"
+    return f"{org}/{name}" if org else name
 
 
 def _make_readme(manifest):
     """Generate a README.md for the HF dataset repo."""
+    tags_yaml = "\n".join([f"- {t}" for t in manifest.get("tags", [])])
+    
     return f"""---
 tags:
-- netryx
-- geolocation
-- visual-place-recognition
-- megaloc
-- osint
+{tags_yaml}
 license: cc-by-4.0
 ---
 
@@ -321,10 +320,11 @@ class NetryxHub:
         huggingface-cli login
     """
 
-    def __init__(self, token=None):
+    def __init__(self, token=None, org=None):
         if not HF_AVAILABLE:
             raise ImportError("Install huggingface_hub: pip install huggingface_hub")
         self.token = token
+        self.org = org
         self.api = HfApi(token=token)
 
     def list_indexes(self):
@@ -333,9 +333,27 @@ class NetryxHub:
         Returns:
             List of dicts with index metadata
         """
-        print(f"[HUB] Searching for indexes in {HF_ORG}...")
+        print(f"[HUB] Searching globally for Netryx indexes...")
         try:
-            datasets = list(self.api.list_datasets(author=HF_ORG))
+            # 1. Global search (may have indexing delay)
+            datasets_global = list(self.api.list_datasets(search="netryx"))
+            
+            # 2. Direct author search (bypasses indexing lag for YOUR own uploads)
+            datasets_mine = []
+            try:
+                user_info = self.api.whoami()
+                datasets_mine = list(self.api.list_datasets(author=user_info["name"]))
+            except:
+                pass
+            
+            # Merge and deduplicate
+            seen_ids = set()
+            datasets = []
+            for ds in datasets_global + datasets_mine:
+                if ds.id not in seen_ids:
+                    datasets.append(ds)
+                    seen_ids.add(ds.id)
+                    
         except Exception as e:
             print(f"[HUB] Error listing datasets: {e}")
             return []
@@ -343,6 +361,11 @@ class NetryxHub:
         indexes = []
         for ds in datasets:
             try:
+                # Filter: strictly require manifest.json (ground truth)
+                files = list_repo_files(repo_id=ds.id, repo_type="dataset")
+                if "manifest.json" not in files:
+                    continue
+                
                 # Download just the manifest to get metadata
                 manifest_path = hf_hub_download(
                     repo_id=ds.id,
@@ -353,9 +376,15 @@ class NetryxHub:
                     manifest = json.load(f)
                 manifest["repo_id"] = ds.id
                 manifest["hf_url"] = f"https://huggingface.co/datasets/{ds.id}"
+                
+                # Author/Badge info
+                author = ds.id.split("/")[0]
+                manifest["author"] = author
+                manifest["is_official"] = (author == "netryx-hub")
+
                 indexes.append(manifest)
             except Exception:
-                # Skip repos that don't have a manifest (not a netryx index)
+                # Skip repos that don't have a manifest or aren't accessible
                 continue
 
         print(f"[HUB] Found {len(indexes)} indexes")
@@ -424,7 +453,13 @@ class NetryxHub:
         """
         # Normalize repo ID
         if "/" not in repo_name:
-            repo_id = f"{HF_ORG}/{repo_name}"
+            # Assume it's the user's own repo
+            try:
+                user_info = self.api.whoami()
+                username = user_info["name"]
+                repo_id = f"{username}/{repo_name}"
+            except Exception:
+                repo_id = repo_name # Fallback
         else:
             repo_id = repo_name
 
@@ -516,20 +551,24 @@ class NetryxHub:
         Returns:
             URL of the created dataset
         """
-        repo_id = _make_repo_id(city, radius_km)
-        name = f"{city.title()} {int(radius_km)}km"
-        if description is None:
-            description = f"Netryx MegaLoc index for {city.title()}, {radius_km}km radius"
-
-        if tags is None:
-            tags = [city.lower(), "urban"]
-
-        # Get HF username
+        # Get HF username dynamically
         try:
             user_info = self.api.whoami()
-            creator = user_info["name"]
+            username = user_info["name"]
+            creator = username
         except Exception:
+            username = None
             creator = "anonymous"
+
+        repo_id = _make_repo_id(city, radius_km, org=username)
+        name = f"{city.title()} {int(radius_km)}km"
+        
+        # Inject discovery tags
+        base_tags = ["netryx", "geolocation", f"netryx-{city.lower().replace(' ', '-')}"]
+        if tags:
+            tags = list(set(tags + base_tags))
+        else:
+            tags = base_tags
 
         print(f"[HUB] Preparing upload: {name}")
         print(f"[HUB] Repo: {repo_id}")
