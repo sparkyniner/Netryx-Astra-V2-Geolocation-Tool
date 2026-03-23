@@ -131,6 +131,12 @@ python test_super.py
 
 Set mode to **Search**, click **Run Search**, and select your query image. The map coordinates and search radius auto-populate from the index metadata.
 
+## Community Hub
+
+This is the part we're most excited about.
+
+Indexing a city takes hours of compute time. It's wasteful for every user to independently index the same city. So we built a sharing system: one person indexes Moscow, uploads the result, and everyone else downloads it in minutes.
+
 ### Option B: Build your own index from scratch
 
 Want to index a city or area that nobody's done yet? The app handles everything — downloading panoramas, extracting descriptors, building the search index.
@@ -150,11 +156,7 @@ What's happening under the hood: the app generates a grid of points within the r
 
 Got a `.netryx` file from a friend, a Discord server, or a download link? Just click **📥 Import Index** in the app, select the file, and you're ready to search. No account needed, no internet needed — it's a fully offline workflow.
 
-## Community Hub
 
-This is the part we're most excited about.
-
-Indexing a city takes hours of compute time. It's wasteful for every user to independently index the same city. So we built a sharing system: one person indexes Moscow, uploads the result, and everyone else downloads it in minutes.
 
 ### How it works
 
