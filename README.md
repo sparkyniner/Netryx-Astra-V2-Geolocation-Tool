@@ -350,6 +350,6 @@ MegaLoc weights are MIT licensed. MASt3R is Apache 2.0 licensed. DINOv2 is Apach
 
 <p align="center">
   <strong>Built by <a href="https://github.com/yourusername">Sairaj Balaji</a></strong><br>
-  <em>Founder, <a href="https://avtaar.ai">Avtaar.ai</a></em><br><br>
+  <em>Founder, <a href="https://www.linkedin.com/in/sairaj-balaji-7295b2246/">Linkedin</a></em><br><br>
   As seen in <a href="#">Fast Company</a> · <a href="#">404 Media</a> · <a href="#">Deutsche Welle</a>
 </p>
