@@ -115,8 +115,12 @@ A single outlier with 200 inliers at the wrong location gets outscored by a clus
 
 This is why accuracy holds up even at larger search radii where there are more look-alike locations.
 
+## Examples
+<img width="1668" height="999" alt="Image" src="https://github.com/user-attachments/assets/c7670e64-aff7-4ee7-b686-165245a4b5b6" />
+We can observe in this picture, there is absolutely nothing to go on, it is just a small cropped part. Conventional OSINT would absolutely fail here. Yet Netryx Astra geolocated it down to its exact coordinates with no metadta whatsoever or clues beforehand running compltely locally.
 
-## Getting Started
+
+# Getting Started
 
 ## Community Hub
 
