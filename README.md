@@ -119,6 +119,9 @@ This is why accuracy holds up even at larger search radii where there are more l
 <img width="1668" height="999" alt="Image" src="https://github.com/user-attachments/assets/c7670e64-aff7-4ee7-b686-165245a4b5b6" />
 We can observe in this picture, there is absolutely nothing to go on, it is just a small cropped part. Conventional OSINT would absolutely fail here. Yet Netryx Astra geolocated it down to its exact coordinates with no metadta whatsoever or clues beforehand running compltely locally.
 
+<img width="1562" height="916" alt="Image" src="https://github.com/user-attachments/assets/33e50df3-8784-4206-a401-666bc92aba07" />
+A small cropped picture of a building, that's all it took to find it's location in a 1km radius in Moscow.
+
 
 # Getting Started
 
