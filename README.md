@@ -128,13 +128,7 @@ Indexing a city takes hours of compute time. It's wasteful for every user to ind
 
 The fastest way. Someone else already did the indexing work — you just download their pre-built index.
 
-```bash
-# Download a pre-built index (no Hugging Face account needed)
-python netryx_hub.py download moscow-1km -o ./netryx_data/index
-
-# Launch the app
-python test_super.py
-```
+<img width="706" height="575" alt="Image" src="https://github.com/user-attachments/assets/62881017-733e-42d3-acd8-26d98826914c" />
 
 Set mode to **Search**, click **Run Search**, and select your query image. The map coordinates and search radius auto-populate from the index metadata.
 
