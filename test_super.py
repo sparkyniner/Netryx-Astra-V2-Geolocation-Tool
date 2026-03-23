@@ -130,7 +130,7 @@ def pil_to_tensor(im):
     return torch.from_numpy(np.array(im.convert('RGB'))).float().permute(2, 0, 1).unsqueeze(0).div(255.0).to(device)
 
 def tensor_to_pil(t):
-    t = t.squeeze(0).cpu().clamp(0, 1).mul(255).add_(0.5).to(torch.uint).permute(1, 2, 0).numpy()
+    t = t.squeeze(0).cpu().clamp(0, 1).mul(255).add_(0.5).to(torch.uint8).permute(1, 2, 0).numpy()
     if t.shape[2] == 1:
         t = t.squeeze(2)
     return Image.fromarray(t)
@@ -166,7 +166,7 @@ IMGX = 4
 IMGY = 2
 
 def _panoids_url(lat, lon):
-    url = "https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{0:}!4d{1:}!2d50!3m10!2m2!1sen!2sGB!9m1!1e2!11m4!1m3!1e2!2b1!3e2!4m10!1e1!1e2!1e3!1e4!1e!1e6!5m1!1e2!6m1!1e2&callback=_xdc_._v2mub5"
+    url = "https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{0:}!4d{1:}!2d50!3m10!2m2!1sen!2sGB!9m1!1e2!11m4!1m3!1e2!2b1!3e2!4m10!1e1!1e2!1e3!1e4!1e8!1e6!5m1!1e2!6m1!1e2&callback=_xdc_._v2mub5"
     return url.format(lat, lon)
 
 def panoids_from_response(text):
@@ -930,7 +930,7 @@ class StreetViewMatcherGUI:
         self.lat_var = tk.DoubleVar(value=55.7569)   # moscowdefault
         self.lon_var = tk.DoubleVar(value=37.6151)
         self.radius_var = tk.DoubleVar(value=10.0)
-        self.res_var = tk.IntVar(value=300)
+        self.res_var = tk.IntVar(value=8)
         self.match_threshold = tk.IntVar(value=50)
         self.crop_fov = tk.IntVar(value=90)
         self.crop_size = tk.IntVar(value=256)
@@ -1058,10 +1058,23 @@ class StreetViewMatcherGUI:
 
         # HF Token Field
         tk.Label(btn_frame, text="Hugging Face Token (for uploads)", bg='#0a0a0f', foreground='#6b7280', font=('Avenir Next', 8)).pack(pady=(5, 0))
-        self.hf_token_entry = RoundedEntry(btn_frame, textvariable=self.hf_token_var, width=380, height=30)
-        self.hf_token_entry.pack(pady=(2, 10))
+        token_entry_frame = tk.Frame(btn_frame, bg='#0a0a0f')
+        token_entry_frame.pack(fill='x', pady=(2, 5))
+        
+        self.hf_token_entry = RoundedEntry(token_entry_frame, textvariable=self.hf_token_var, width=380, height=30)
+        self.hf_token_entry.pack(pady=(2, 5))
         # Mask the token
         self.hf_token_entry.entry.config(show="*")
+
+        def open_hf_tokens():
+            import webbrowser
+            webbrowser.open("https://huggingface.co/settings/tokens")
+
+        self.get_token_btn = tk.Button(btn_frame, text="🔗 Get Hugging Face Token", command=open_hf_tokens,
+                                       bg='#0a0a0f', fg='#8b5cf6', font=('Avenir Next', 8, 'underline'),
+                                       borderwidth=0, highlightthickness=0, activebackground='#0a0a0f',
+                                       activeforeground='#a855f7', cursor="hand2")
+        self.get_token_btn.pack(pady=(0, 10))
 
         tk.Label(btn_frame, text="Offline File Sharing (.netryx)", 
                  font=('Avenir Next', 8, 'italic'), bg='#0a0a0f', fg='#6b7280').pack(pady=(4, 2))
@@ -1201,7 +1214,7 @@ class StreetViewMatcherGUI:
             status_callback=lambda idx, total: q.put(('status', f"Scan node fetch {idx}/{total}...")),
             max_workers=MAX_PANOID_WORKERS
         )
-        q.put(('status', f"Found {len(panoids)} scan nodes. Extracting Megaloc features..."))
+        q.put(('status', f"Found {len(panoids)} scan nodes. Extracting EigenPlace features..."))
 
         headings_all = sorted(list(set(((h // crop_step) * crop_step) % 360 for h in range(0, 360, crop_step))))
         embeddings_per_panoid = len(headings_all)
@@ -1257,7 +1270,7 @@ class StreetViewMatcherGUI:
                     megaloc_buffer_lats.clear()
                     megaloc_buffer_lons.clear()
                 except Exception as e:
-                    print(f"Error saving Megaloc chunk: {e}")
+                    print(f"Error saving EigenPlace chunk: {e}")
 
             def process_batch(buffer):
                 nonlocal total_extracted
@@ -1317,7 +1330,7 @@ class StreetViewMatcherGUI:
             pano_t = pil_to_tensor(pano_img)
             panoid_id = panoid['panoid']
 
-            # Use a dummy shard path — actual storage is in megaloc parts, not individual .npz
+            # Use a dummy shard path — actual storage is in eigenplace parts, not individual .npz
             missing_yaws = [y for y in headings_all if f"{panoid_id}_{y}.npz" not in existing_files]
 
             if missing_yaws:
@@ -2028,7 +2041,10 @@ class StreetViewMatcherGUI:
                     self._hub_listbox.delete(0, 'end')
                     for idx in indexes:
                         size_mb = idx.get('file_size_bytes', 0) / 1024 / 1024
-                        line = f"📦 {idx['name']}  |  {idx['radius_km']}km  |  {idx['num_entries']:,} entries  |  {size_mb:.0f}MB  |  by @{idx.get('creator', '?')}"
+                        author = idx.get('author', '?')
+                        badge = "🟣 Official" if idx.get('is_official') else "🟢 Community"
+                        
+                        line = f"📦 {idx['name']:<18} | {idx['radius_km']:>3}km | {idx['num_entries']:>6,} pts | {size_mb:>4.0f}MB | {badge} by @{author}"
                         self._hub_listbox.insert('end', line)
                     self._hub_status.config(text=f"Found {len(indexes)} indexes")
 
@@ -2058,7 +2074,10 @@ class StreetViewMatcherGUI:
                     self._hub_listbox.delete(0, 'end')
                     for idx in results:
                         size_mb = idx.get('file_size_bytes', 0) / 1024 / 1024
-                        line = f"📦 {idx['name']}  |  {idx['radius_km']}km  |  {idx['num_entries']:,} entries  |  {size_mb:.0f}MB"
+                        author = idx.get('author', '?')
+                        badge = "🟣 Official" if idx.get('is_official') else "🟢 Community"
+                        
+                        line = f"📦 {idx['name']:<18} | {idx['radius_km']:>3}km | {idx['num_entries']:>6,} pts | {size_mb:>4.0f}MB | {badge} by @{author}"
                         self._hub_listbox.insert('end', line)
                     self._hub_status.config(text=f"Found {len(results)} indexes for '{query}'")
 
@@ -2159,7 +2178,20 @@ class StreetViewMatcherGUI:
 
             def upload_thread():
                 try:
-                    hub = NetryxHub(token=self.hf_token_var.get().strip())
+                    token = self.hf_token_var.get().strip()
+                    if not token:
+                        self.master.after(0, lambda: messagebox.showerror("Hugging Face Help", 
+                            "Please connect Hugging Face to upload.\n\n"
+                            "1. Click 'Get Hugging Face Token'\n"
+                            "2. Generate a WRITE token\n"
+                            "3. Paste it in the token field\n"
+                            "4. Try uploading again"))
+                        self.master.after(0, lambda: status_lbl.config(text="Token missing"))
+                        return
+
+                    os.environ["HF_TOKEN"] = token
+                    hub = NetryxHub(token=token)
+                    
                     tags = [t.strip() for t in tags_var.get().split(',') if t.strip()]
                     url = hub.upload(
                         index_dir=COMPACT_INDEX_DIR,
@@ -2205,7 +2237,7 @@ class StreetViewMatcherGUI:
                     index_dir=COMPACT_INDEX_DIR,
                     output_path=save_path,
                     name=f"Netryx Index {self.radius_var.get()}km",
-                    description="Exported from Netryx Astra",
+                    description="Exported from Netryx Drishti",
                     center_lat=self.lat_var.get(),
                     center_lon=self.lon_var.get(),
                     radius_km=self.radius_var.get(),
@@ -2266,7 +2298,7 @@ class StreetViewMatcherGUI:
 
     def show_help(self):
         help_win = tk.Toplevel(self.master)
-        help_win.title("Netryx Astra - Technical User Guide")
+        help_win.title("Netryx Drishti - Technical User Guide")
         help_win.geometry("850x750")
         help_win.configure(bg='#0a0a0f')
         help_win.transient(self.master)
