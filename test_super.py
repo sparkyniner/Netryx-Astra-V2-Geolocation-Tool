@@ -1201,7 +1201,7 @@ class StreetViewMatcherGUI:
             status_callback=lambda idx, total: q.put(('status', f"Scan node fetch {idx}/{total}...")),
             max_workers=MAX_PANOID_WORKERS
         )
-        q.put(('status', f"Found {len(panoids)} scan nodes. Extracting EigenPlace features..."))
+        q.put(('status', f"Found {len(panoids)} scan nodes. Extracting Megaloc features..."))
 
         headings_all = sorted(list(set(((h // crop_step) * crop_step) % 360 for h in range(0, 360, crop_step))))
         embeddings_per_panoid = len(headings_all)
@@ -1257,7 +1257,7 @@ class StreetViewMatcherGUI:
                     megaloc_buffer_lats.clear()
                     megaloc_buffer_lons.clear()
                 except Exception as e:
-                    print(f"Error saving EigenPlace chunk: {e}")
+                    print(f"Error saving Megaloc chunk: {e}")
 
             def process_batch(buffer):
                 nonlocal total_extracted
@@ -1317,7 +1317,7 @@ class StreetViewMatcherGUI:
             pano_t = pil_to_tensor(pano_img)
             panoid_id = panoid['panoid']
 
-            # Use a dummy shard path — actual storage is in eigenplace parts, not individual .npz
+            # Use a dummy shard path — actual storage is in megaloc parts, not individual .npz
             missing_yaws = [y for y in headings_all if f"{panoid_id}_{y}.npz" not in existing_files]
 
             if missing_yaws:
