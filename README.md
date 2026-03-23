@@ -1,5 +1,6 @@
 <p align="center">
-  <h1 align="center">🔱 Netryx Astra V2</h1>
+  <img width="350" height="350" alt="Image" src="https://github.com/user-attachments/assets/2b07a52a-a6c4-4bab-9a24-403ff0c7249b" />
+  <h1 align="center">Netryx Astra V2</h1>
   <p align="center"><strong>State-of-the-art AI geolocation from a single image.</strong></p>
   <p align="center">
     <a href="#the-idea">The Idea</a> •
