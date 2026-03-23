@@ -130,7 +130,7 @@ def pil_to_tensor(im):
     return torch.from_numpy(np.array(im.convert('RGB'))).float().permute(2, 0, 1).unsqueeze(0).div(255.0).to(device)
 
 def tensor_to_pil(t):
-    t = t.squeeze(0).cpu().clamp(0, 1).mul(255).add_(0.5).to(torch.uint8).permute(1, 2, 0).numpy()
+    t = t.squeeze(0).cpu().clamp(0, 1).mul(255).add_(0.5).to(torch.uint).permute(1, 2, 0).numpy()
     if t.shape[2] == 1:
         t = t.squeeze(2)
     return Image.fromarray(t)
@@ -166,7 +166,7 @@ IMGX = 4
 IMGY = 2
 
 def _panoids_url(lat, lon):
-    url = "https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{0:}!4d{1:}!2d50!3m10!2m2!1sen!2sGB!9m1!1e2!11m4!1m3!1e2!2b1!3e2!4m10!1e1!1e2!1e3!1e4!1e8!1e6!5m1!1e2!6m1!1e2&callback=_xdc_._v2mub5"
+    url = "https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{0:}!4d{1:}!2d50!3m10!2m2!1sen!2sGB!9m1!1e2!11m4!1m3!1e2!2b1!3e2!4m10!1e1!1e2!1e3!1e4!1e!1e6!5m1!1e2!6m1!1e2&callback=_xdc_._v2mub5"
     return url.format(lat, lon)
 
 def panoids_from_response(text):
@@ -930,7 +930,7 @@ class StreetViewMatcherGUI:
         self.lat_var = tk.DoubleVar(value=55.7569)   # moscowdefault
         self.lon_var = tk.DoubleVar(value=37.6151)
         self.radius_var = tk.DoubleVar(value=10.0)
-        self.res_var = tk.IntVar(value=8)
+        self.res_var = tk.IntVar(value=300)
         self.match_threshold = tk.IntVar(value=50)
         self.crop_fov = tk.IntVar(value=90)
         self.crop_size = tk.IntVar(value=256)
