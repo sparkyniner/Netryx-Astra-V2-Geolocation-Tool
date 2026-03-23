@@ -930,7 +930,7 @@ class StreetViewMatcherGUI:
         self.lat_var = tk.DoubleVar(value=55.7569)   # moscowdefault
         self.lon_var = tk.DoubleVar(value=37.6151)
         self.radius_var = tk.DoubleVar(value=10.0)
-        self.res_var = tk.IntVar(value=8)
+        self.res_var = tk.IntVar(value=300)
         self.match_threshold = tk.IntVar(value=50)
         self.crop_fov = tk.IntVar(value=90)
         self.crop_size = tk.IntVar(value=256)
