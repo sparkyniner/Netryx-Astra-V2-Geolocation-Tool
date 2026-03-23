@@ -167,30 +167,7 @@ Indexes are hosted on [Hugging Face Hub](https://huggingface.co/netryx-community
 
 **From the GUI:** Click the **🌐 Community Hub** button to browse, search, and download available indexes. Click **⬆ Upload Current Index** to share yours.
 
-**From the command line:**
 
-```bash
-# See what's available
-python netryx_hub.py list
-
-# Search for a specific city
-python netryx_hub.py search --city paris
-
-# Search by coordinates (finds all indexes covering that area)
-python netryx_hub.py search --lat 48.8566 --lon 2.3522
-
-# Download an index
-python netryx_hub.py download paris-10km -o ./netryx_data/index
-
-# Upload your index (requires HF login: huggingface-cli login)
-python netryx_hub.py upload \
-  --index-dir ./netryx_data/index \
-  --city tokyo \
-  --radius 5 \
-  --lat 35.6762 \
-  --lon 139.6503 \
-  --tags tokyo japan urban shibuya
-```
 
 ### The .netryx format
 
@@ -225,7 +202,7 @@ python netryx_hub.py import moscow_1km.netryx -o ./netryx_data/index
 
 **Mac / Linux:**
 ```bash
-git clone https://github.com/yourusername/netryx-astra-v2.git
+git clone https://github.com/sparkyniner/netryx-astra-v2.git
 cd netryx-astra-v2
 chmod +x setup.sh && ./setup.sh
 source venv/bin/activate
@@ -234,7 +211,7 @@ python3 test_super.py
 
 **Windows:**
 ```
-git clone https://github.com/yourusername/netryx-astra-v2.git
+git clone https://github.com/sparkyniner/netryx-astra-v2.git
 cd netryx-astra-v2
 ```
 Then double-click **`setup.bat`** to install everything. When it finishes, double-click **`run.bat`** to launch.
