@@ -307,7 +307,7 @@ We believe in being upfront about what this tool can and can't do.
 
 **This is not a real-time system.** Running MASt3R on 500 candidates takes several minutes on a consumer GPU. This is designed for forensic analysis — investigative journalism, human rights documentation, OSINT research, insurance fraud investigation — not for navigation or live tracking.
 
-**Indexing requires meaningful compute.** MegaLoc's DINOv2 backbone is ~5x heavier than the CosPlace backbone used in V1. Indexing a 1km radius takes ~20-30 minutes. A full city (10km+) is an overnight job. That's why the Community Hub exists — so this cost is paid once and shared.
+**Indexing requires meaningful compute.** MegaLoc's DINOv2 backbone is ~5x heavier than the CosPlace backbone used in V1. Indexing a 1km radius takes ~20-30 minutes. A full city (10km+) is an overnight job. That's why the Community Hub exists — so this cost is paid once and shared. Also the match with most inliners isnt neccsarily the correct match that's why it returns multiple results which you can cross check yourself.
 
 
 
