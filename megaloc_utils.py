@@ -6,13 +6,7 @@ for compact indexing. The API mirrors cosplace_utils exactly so the main Netryx
 code can switch with minimal changes.
 
 Usage in main code:
-    # Replace:
-    from cosplace_utils import (
-        get_cosplace_model, extract_cosplace_descriptor,
-        load_cosplace_index, cosplace_similarity,
-        batch_extract_cosplace
-    )
-    # With:
+    
     from megaloc_utils import (
         get_megaloc_model, extract_megaloc_descriptor,
         megaloc_similarity, batch_extract_megaloc,
