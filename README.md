@@ -144,6 +144,8 @@ Set mode to **Search**, click **Run Search**, and select your query image. The m
 
 ### Option B: Build your own index from scratch
 
+IMPORTANT NOTE: if application freezes due to running out of application memoery while fitting PCA, use this command in terminal! python3 -c "from test_super import build_compact_index; build_compact_index()"
+
 Want to index a city or area that nobody's done yet? The app handles everything — downloading panoramas, extracting descriptors, building the search index.
 
 ```bash
