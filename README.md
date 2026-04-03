@@ -225,7 +225,9 @@ That's it. The setup script creates a virtual environment, installs all dependen
 ### What you need
 
 - **Python 3.10+**
-- **macOS** (Apple Silicon via MPS), **Linux** (NVIDIA GPU via CUDA), or **Windows** (NVIDIA GPU via CUDA)
+- **macOS** (Apple Silicon via MPS), 
+- **Linux** (NVIDIA GPU via CUDA, AMD GPU via ROCM), or 
+- **Windows** (NVIDIA GPU via CUDA)
 - **8GB+ RAM** for searching (16GB+ recommended for indexing large areas)
 - **~2GB disk** per city index
 
@@ -256,6 +258,22 @@ some_folder/
 Everything runs on Apple Silicon out of the box. The code handles MPS quirks automatically — CPU fallback for unimplemented ops, monkey-patching of `.view()` → `.reshape()` for non-contiguous tensors, and MPS cache cleanup during long indexing runs.
 
 If you have an M1/M2/M3/M4 Mac, it'll use GPU acceleration automatically. No configuration needed.
+
+### AMD Rocm notes
+
+You will need to install rocm/pytorch for your specific device manually to the venv after running the install script.
+
+For APU's (ryzen AI max+ etc), need to follow instructions from:
+- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installryz/native_linux/install-ryzen.html
+
+- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installryz/native_linux/install-pytorch.html
+
+For discrete graphics cards (RX 7900, 9070, etc) follow:
+- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/native_linux/install-radeon.html
+
+- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/native_linux/install-pytorch.html
+
+
 
 ## Project Structure
 

@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+from torch.amp import autocast
 import numpy as np
 from PIL import Image
 
@@ -84,11 +85,14 @@ def get_mast3r_model():
             "naver/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric"
         ).to(device)
         _mast3r_model.eval()
+
         print("[MASt3R] Model loaded successfully (from HuggingFace).")
     except Exception as e:
         print(f"[MASt3R] Error loading model: {e}")
         raise e
     
+    with autocast(device, dtype=torch.bfloat16):
+        _mast3r_model = torch.compile(_mast3r_model, mode='reduce-overhead')
     return _mast3r_model
 
 def get_mast3r_matches(img1_pil, img2_pil, model, image_size=512):
@@ -114,9 +118,10 @@ def get_mast3r_matches(img1_pil, img2_pil, model, image_size=512):
     view2["idx"] = 1
 
     images = [view1, view2]
-    
+
     with torch.no_grad():
-        output = inference([tuple(images)], model, device, batch_size=1, verbose=False)
+        with autocast(device, dtype=torch.bfloat16):
+            output = inference([tuple(images)], model, device, batch_size=1, verbose=False)
         
         v1, pred1 = output['view1'], output['pred1']
         v2, pred2 = output['view2'], output['pred2']
