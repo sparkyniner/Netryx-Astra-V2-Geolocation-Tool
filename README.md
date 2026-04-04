@@ -263,17 +263,20 @@ If you have an M1/M2/M3/M4 Mac, it'll use GPU acceleration automatically. No con
 
 You will need to install rocm/pytorch for your specific device manually to the venv after running the install script.
 
-For APU's (ryzen AI max+ etc), need to follow instructions from:
-- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installryz/native_linux/install-ryzen.html
+Use TheRock pytorch builds for your device:
+https://github.com/ROCm/TheRock/blob/main/RELEASES.md#installing-pytorch-python-packages 
 
-- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installryz/native_linux/install-pytorch.html
+To install for example, for RX7xxx series cards:
 
-For discrete graphics cards (RX 7900, 9070, etc) follow:
-- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/native_linux/install-radeon.html
-
-- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/native_linux/install-pytorch.html
-
-
+```
+pip install --index-url https://rocm.nightlies.amd.com/v2/gfx110X-all/ torch torchaudio torchvision
+```
+NOTE: ensure the user is part of the render group:
+```
+sudo usermod -aG render <userid>
+```
+and the base driver is installed:
+https://rocm.docs.amd.com/projects/install-on-linux/en/latest/install/quick-start.html#amd-gpu-driver-installation
 
 ## Project Structure
 
