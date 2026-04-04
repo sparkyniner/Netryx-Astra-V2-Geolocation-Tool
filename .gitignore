@@ -1,0 +1,4 @@
+venv/
+.vscode
+netryx_data
+__pycache__/
