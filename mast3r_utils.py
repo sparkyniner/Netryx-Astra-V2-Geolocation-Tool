@@ -91,6 +91,7 @@ def get_mast3r_model():
         print(f"[MASt3R] Error loading model: {e}")
         raise e
     
+    # use reduce overhead since mast3r runs a lot so its worth the upfron compile time
     with autocast(device, dtype=torch.bfloat16):
         _mast3r_model = torch.compile(_mast3r_model, mode='reduce-overhead')
     return _mast3r_model
