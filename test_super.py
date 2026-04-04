@@ -353,7 +353,6 @@ def get_projection_base_dirs(fov_deg, out_hw):
     dirs = dirs / torch.norm(dirs, dim=-1, keepdim=True)
     return dirs.reshape(-1, 3).T
 
-@torch.compile
 def equirectangular_to_rectilinear_torch(pano_tensor, fov_deg=90, out_hw=(400, 400), yaw_deg=0, pitch_deg=0, base_dirs=None):
     _, _, h, w = pano_tensor.shape
     out_h, out_w = out_hw
