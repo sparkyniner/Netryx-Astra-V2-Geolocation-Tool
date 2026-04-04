@@ -145,7 +145,7 @@ def get_megaloc_model(device=None):
             model.backbone.forward = _patched_backbone_forward
             print("[MEGALOC] Applied MPS-compatible patches (.view -> .reshape)")
         # ── END MPS FIX ──────────────────────────────────────────────
-        with autocast(device, dtype=torch.bfloat16):
+        with autocast(dev, dtype=torch.bfloat16):
             # use default mode to cut down on compile time
             _megaloc_model = torch.compile(model) 
 
