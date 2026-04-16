@@ -206,7 +206,7 @@ python netryx_hub.py import moscow_1km.netryx -o ./netryx_data/index
 
 **Mac / Linux:**
 ```bash
-git clone https://github.com/sparkyniner/netryx-astra-v2.git
+git clone https://github.com/sparkyniner/Netryx-Astra-V2-Geolocation-Tool.git
 cd netryx-astra-v2
 chmod +x setup.sh && ./setup.sh
 source venv/bin/activate
