@@ -225,7 +225,9 @@ That's it. The setup script creates a virtual environment, installs all dependen
 ### What you need
 
 - **Python 3.10+**
-- **macOS** (Apple Silicon via MPS), **Linux** (NVIDIA GPU via CUDA), or **Windows** (NVIDIA GPU via CUDA)
+- **macOS** (Apple Silicon via MPS), 
+- **Linux** (NVIDIA GPU via CUDA, AMD GPU via ROCM), or 
+- **Windows** (NVIDIA GPU via CUDA)
 - **8GB+ RAM** for searching (16GB+ recommended for indexing large areas)
 - **~2GB disk** per city index
 
@@ -256,6 +258,25 @@ some_folder/
 Everything runs on Apple Silicon out of the box. The code handles MPS quirks automatically — CPU fallback for unimplemented ops, monkey-patching of `.view()` → `.reshape()` for non-contiguous tensors, and MPS cache cleanup during long indexing runs.
 
 If you have an M1/M2/M3/M4 Mac, it'll use GPU acceleration automatically. No configuration needed.
+
+### AMD Rocm notes
+
+You will need to install rocm/pytorch for your specific device manually to the venv after running the install script.
+
+Use TheRock pytorch builds for your device:
+https://github.com/ROCm/TheRock/blob/main/RELEASES.md#installing-pytorch-python-packages 
+
+To install for example, for RX7xxx series cards:
+
+```
+pip install --index-url https://rocm.nightlies.amd.com/v2/gfx110X-all/ torch torchaudio torchvision
+```
+NOTE: ensure the user is part of the render group:
+```
+sudo usermod -aG render <userid>
+```
+and the base driver is installed:
+https://rocm.docs.amd.com/projects/install-on-linux/en/latest/install/quick-start.html#amd-gpu-driver-installation
 
 ## Project Structure
 

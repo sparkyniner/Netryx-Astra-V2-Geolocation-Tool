@@ -37,6 +37,18 @@ from megaloc_utils import (
 )
 import gc
 
+#PCA matching dimensions
+INDEX_TARGET_DIM = 1024
+
+# performance tuning
+MAX_PANOID_WORKERS = 32
+MAX_HEADING_WORKERS = 4
+MAX_DOWNLOAD_WORKERS = 120
+MAX_MATCH_WORKERS = 16
+EARLY_EXIT_INLIER_THRESHOLD = 300
+MEGALOC_BATCH_SIZE = 16
+CROP_QUEUE_SIZE =  1024
+
 
 #Device and model steup stuff
 
@@ -91,14 +103,6 @@ COMPACT_INFO_PATH = os.path.join(COMPACT_INDEX_DIR, "index_info.txt")
 for d in [DATA_DIR, MEGALOC_PARTS_DIR, COMPACT_INDEX_DIR]:
     os.makedirs(d, exist_ok=True)
 
-# performance tuning
-MAX_PANOID_WORKERS = 16
-MAX_HEADING_WORKERS = 1
-MAX_DOWNLOAD_WORKERS = 100
-MAX_MATCH_WORKERS = 6
-EARLY_EXIT_INLIER_THRESHOLD = 300
-
-
 _mps_cleanup_counter = 0
 _mps_cleanup_lock = threading.Lock()
 
@@ -122,9 +126,6 @@ def aggressive_mps_cleanup(force=False):
             )
         except Exception:
             pass
-
-
-
 
 def pil_to_tensor(im):
     return torch.from_numpy(np.array(im.convert('RGB'))).float().permute(2, 0, 1).unsqueeze(0).div(255.0).to(device)
@@ -412,8 +413,6 @@ def parse_emb_path(emb_path):
             pass
     return None, None
 
-
-INDEX_TARGET_DIM = 1024
 
 def build_compact_index():
     """Build compact index from part files + CSV coordinates.
@@ -1235,7 +1234,7 @@ class StreetViewMatcherGUI:
         except Exception as e:
             q.put(('status', f"Warning: Could not load existing parts: {e}"))
 
-        crop_queue = queue.Queue(maxsize=128)
+        crop_queue = queue.Queue(maxsize=CROP_QUEUE_SIZE)
         tracker = ProgressTracker(len(panoids), estimate_storage=True,
                                  embeddings_per_item=embeddings_per_panoid, avg_bytes_per_embedding=2560)
         total_extracted = 0
@@ -1243,7 +1242,7 @@ class StreetViewMatcherGUI:
         # thread to extract features in batch
         def batch_extractor():
             nonlocal total_extracted
-            target_batch_size = 32
+            target_batch_size = MEGALOC_BATCH_SIZE
             batch_buffer = []
             megaloc_buffer_descs = []
             megaloc_buffer_paths = []

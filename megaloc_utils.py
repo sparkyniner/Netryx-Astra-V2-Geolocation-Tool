@@ -19,6 +19,7 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.amp import autocast
 import torchvision.transforms.functional as tfm
 from PIL import Image
 import pickle
@@ -44,9 +45,6 @@ elif torch.cuda.is_available():
 else:
     _device = 'cpu'
 
-
-
-
 def get_megaloc_model(device=None):
     """Load the MegaLoc model (singleton, thread-safe).
     
@@ -63,7 +61,6 @@ def get_megaloc_model(device=None):
 
         dev = device or _device
         print(f"[MEGALOC] Loading MegaLoc model on {dev}...")
-
         try:
             model = torch.hub.load("gmberton/MegaLoc", "get_trained_model")
             print("[MEGALOC] Loaded via torch.hub")
@@ -148,8 +145,10 @@ def get_megaloc_model(device=None):
             model.backbone.forward = _patched_backbone_forward
             print("[MEGALOC] Applied MPS-compatible patches (.view -> .reshape)")
         # ── END MPS FIX ──────────────────────────────────────────────
+        with autocast(dev, dtype=torch.bfloat16):
+            # use default mode to cut down on compile time
+            _megaloc_model = torch.compile(model) 
 
-        _megaloc_model = model
         print(f"[MEGALOC] Model ready. Output dim: {MEGALOC_RAW_DIM}")
         return _megaloc_model
 
@@ -191,9 +190,9 @@ def extract_megaloc_descriptor(pil_img, apply_pca_reduction=True):
     """
     model = get_megaloc_model()
     tensor = _preprocess_pil(pil_img).unsqueeze(0).to(_device)
-
     with torch.no_grad():
-        desc = model(tensor)  # [1, 8448]
+        with autocast(_device, dtype=torch.bfloat16):
+            desc = model(tensor)  # [1, 8448]
 
     desc = desc.cpu().numpy().squeeze()  # (8448,)
 
@@ -220,9 +219,9 @@ def batch_extract_megaloc(pil_images, batch_size=16, apply_pca_reduction=False):
     for i in range(0, len(pil_images), batch_size):
         batch = pil_images[i:i + batch_size]
         tensors = torch.stack([_preprocess_pil(img) for img in batch]).to(_device)
-
         with torch.no_grad():
-            descs = model(tensors)  # [B, 8448]
+            with autocast(_device, dtype=torch.bfloat16):
+                descs = model(tensors)  # [B, 8448]
 
         all_descs.append(descs.cpu().numpy())
 
@@ -322,13 +321,7 @@ def load_pca(path):
           f"(components: {_pca_model.n_components_})")
     return _pca_model
 
-
-
-
-
-
 # Quick test
-
 
 if __name__ == "__main__":
     print("Testing MegaLoc utils...")
