@@ -7,6 +7,7 @@ scikit-learn
 aiohttp
 tkintermapview
 huggingface-hub
+hf_transfer
 requests
 safetensors
 einops

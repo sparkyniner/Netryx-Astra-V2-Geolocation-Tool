@@ -188,8 +188,18 @@ def panoids_from_response(text):
             filtered.append(p)
     return filtered
 
+# Google's tile server now rejects requests that don't carry an Origin/Referer
+# matching Google Maps itself (both are required together — either alone still
+# gets a 403 PERMISSION_DENIED). No cookies or session token needed, verified
+# against real Google Maps traffic via a browser.
+STREETVIEW_TILE_HEADERS = {
+    "origin": "https://www.google.com",
+    "referer": "https://www.google.com/",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+}
+
 def tiles_info(panoid):
-    image_url = "http://cbk0.google.com/cbk?output=tile&panoid={0:}&zoom=2&x={1:}&y={2:}"
+    image_url = "https://streetviewpixels-pa.googleapis.com/v1/tile?cb_client=maps_sv.tactile&panoid={0:}&x={1:}&y={2:}&zoom=2&nbt=1&fover=2"
     coord = list(itertools.product(range(IMGX), range(IMGY)))
     tiles = [(x, y, "%s_%dx%d.jpg" % (panoid, x, y), image_url.format(panoid, x, y)) for x, y in coord]
     return tiles
@@ -197,7 +207,7 @@ def tiles_info(panoid):
 async def download_tile_aiohttp(session, x, y, fname, url):
     for attempt in range(2):
         try:
-            async with session.get(url.replace("http://", "https://"), timeout=10) as response:
+            async with session.get(url, headers=STREETVIEW_TILE_HEADERS, timeout=10) as response:
                 if response.status == 200:
                     data = await response.read()
                     return x, y, data
@@ -1313,9 +1323,8 @@ class StreetViewMatcherGUI:
 
         base_dirs = get_projection_base_dirs(crop_fov, (crop_size, crop_size))
 
-        def process_one_panoid(panoid):
-            tiles = tiles_info(panoid['panoid'])
-            tiles_data = download_tiles(tiles, max_workers=MAX_DOWNLOAD_WORKERS)
+        def stitch_and_extract(panoid, tiles_data):
+            """CPU-bound: stitch downloaded tiles into a panorama and queue crops for extraction."""
             if not tiles_data:
                 return False
             try:
@@ -1347,10 +1356,35 @@ class StreetViewMatcherGUI:
             del pano_t
             return True
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_PANOID_WORKERS) as executor:
-            for idx, _ in enumerate(executor.map(process_one_panoid, panoids), 1):
-                tracker.update(idx)
+        async def download_and_stitch_all():
+            # One shared session/connector for every panoid in this run, so TCP+TLS
+            # connections to Google's tile server are kept alive and reused instead of
+            # being re-established (a full handshake) for every single panorama.
+            connector = aiohttp.TCPConnector(limit=MAX_DOWNLOAD_WORKERS)
+            sem = asyncio.Semaphore(MAX_PANOID_WORKERS)
+            loop = asyncio.get_event_loop()
+            cpu_pool = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_PANOID_WORKERS)
+            completed = 0
+
+            async def worker(session, panoid):
+                nonlocal completed
+                async with sem:
+                    tiles = tiles_info(panoid['panoid'])
+                    tile_results = await asyncio.gather(
+                        *(download_tile_aiohttp(session, x, y, fname, url) for x, y, fname, url in tiles)
+                    )
+                    tiles_data = {(x, y): data for x, y, data in tile_results if data}
+                    await loop.run_in_executor(cpu_pool, stitch_and_extract, panoid, tiles_data)
+                completed += 1
+                tracker.update(completed)
                 q.put(('status', f"Downloading & Stitching: {tracker.get_status()}"))
+
+            async with aiohttp.ClientSession(connector=connector) as session:
+                await asyncio.gather(*(worker(session, p) for p in panoids))
+
+            cpu_pool.shutdown(wait=True)
+
+        asyncio.run(download_and_stitch_all())
 
         crop_queue.put("DONE")
         extractor_thread.join()
@@ -1683,66 +1717,123 @@ class StreetViewMatcherGUI:
                                    'kp1': None, 'kp2': None, 'emb_path': None, 'confidence': 'none'})
 
     def show_coverage_map(self):
-        from collections import defaultdict
+        self.coverage_btn.configure(state='disabled', text="Loading coverage...")
         self._set_status("Loading coverage data...")
-        locations = set()
+        threading.Thread(target=self._compute_coverage_map, daemon=True).start()
 
-        # Load only metadata for coverage (skip descriptors entirely)
-        if os.path.exists(COMPACT_META_PATH):
-            try:
+    def _compute_coverage_map(self):
+        """Runs off the main thread: dedupe/bucket/connect points with numpy so a
+        large or merged (e.g. imported community) index can't blow up CPU/RAM by
+        driving an O(n^2) pure-Python nested loop. Draws results back on the UI
+        thread via self.master.after once components are computed."""
+        MAX_COVERAGE_POINTS = 20000
+        MAX_CONNECT_DIST_KM = 0.03
+        BUCKET_SIZE = 0.0002
+
+        locations = set()
+        try:
+            if os.path.exists(COMPACT_META_PATH):
                 meta = np.load(COMPACT_META_PATH, allow_pickle=True)
                 lats = meta['lats']
                 lons = meta['lons']
                 for i in range(len(lats)):
                     locations.add((round(float(lats[i]), 6), round(float(lons[i]), 6)))
                 del meta
-            except Exception as e:
-                print(f"[COVERAGE] Error loading metadata: {e}")
+        except Exception as e:
+            print(f"[COVERAGE] Error loading metadata: {e}")
 
+        latlons = list(locations)
+        sampled = False
+        if len(latlons) > MAX_COVERAGE_POINTS:
+            idx = np.random.choice(len(latlons), MAX_COVERAGE_POINTS, replace=False)
+            latlons = [latlons[i] for i in idx]
+            sampled = True
+
+        components = []
+        if latlons:
+            pts = np.array(latlons, dtype=np.float64)  # (N, 2) lat, lon
+
+            grid = defaultdict(list)
+            for i, (lat, lon) in enumerate(latlons):
+                bucket_key = (int(lat / BUCKET_SIZE), int(lon / BUCKET_SIZE))
+                grid[bucket_key].append(i)
+
+            R = 6371.0
+            lat_rad = np.radians(pts[:, 0])
+            lon_rad = np.radians(pts[:, 1])
+
+            graph = defaultdict(list)
+            checked_pairs = set()
+            for bucket_key, idxs in grid.items():
+                idxs_arr = np.array(idxs)
+                for dlat in (-1, 0, 1):
+                    for dlon in (-1, 0, 1):
+                        neighbor_key = (bucket_key[0] + dlat, bucket_key[1] + dlon)
+                        neighbor_idxs = grid.get(neighbor_key)
+                        if not neighbor_idxs: continue
+                        pair_key = frozenset((bucket_key, neighbor_key))
+                        if pair_key in checked_pairs: continue
+                        checked_pairs.add(pair_key)
+
+                        nb_arr = np.array(neighbor_idxs)
+                        # Vectorized haversine between every point in this bucket and the
+                        # neighbor bucket, chunked so a single dense bucket (e.g. many
+                        # points collapsed onto ~the same spot) can't allocate an
+                        # arbitrarily large len(idxs_arr) x len(nb_arr) matrix at once.
+                        MAX_PAIR_CHUNK = 2_000_000
+                        chunk_rows = max(1, MAX_PAIR_CHUNK // max(1, len(nb_arr)))
+                        lat2 = lat_rad[nb_arr][None, :]
+                        lon2 = lon_rad[nb_arr][None, :]
+                        for start in range(0, len(idxs_arr), chunk_rows):
+                            chunk_idxs = idxs_arr[start:start + chunk_rows]
+                            lat1 = lat_rad[chunk_idxs][:, None]
+                            lon1 = lon_rad[chunk_idxs][:, None]
+                            dlat_r = lat2 - lat1
+                            dlon_r = lon2 - lon1
+                            a = np.sin(dlat_r / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon_r / 2) ** 2
+                            dist = 2 * R * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+
+                            close = np.argwhere(dist <= MAX_CONNECT_DIST_KM)
+                            for r, c in close:
+                                i1, i2 = chunk_idxs[r], nb_arr[c]
+                                if i1 == i2: continue
+                                # Cap edges per node so a pathological cluster (many points
+                                # within MAX_CONNECT_DIST_KM of each other, e.g. a hostile or
+                                # corrupt imported index) can't blow up graph memory towards
+                                # O(n^2) edges — connectivity for the drawn path doesn't need
+                                # every redundant edge, just enough to link the component.
+                                if len(graph[i1]) < 50: graph[i1].append(i2)
+                                if len(graph[i2]) < 50: graph[i2].append(i1)
+
+            visited = set()
+            for start in range(len(latlons)):
+                if start in visited: continue
+                component = []
+                bfs_queue = [start]
+                visited.add(start)
+                while bfs_queue:
+                    current = bfs_queue.pop(0)
+                    component.append(latlons[current])
+                    for neighbor in graph[current]:
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            bfs_queue.append(neighbor)
+                components.append(component)
+
+        self.master.after(0, lambda: self._draw_coverage_map(locations, latlons, components, sampled))
+
+    def _draw_coverage_map(self, locations, latlons, components, sampled):
         self._clear_coverage_markers()
         self._clear_result_elements()
 
-        if locations:
-            latlons = list(locations)
+        if latlons:
             center_lat = sum(lat for lat, lon in latlons) / len(latlons)
             center_lon = sum(lon for lat, lon in latlons) / len(latlons)
             self.map_widget.set_position(center_lat, center_lon)
             self.map_widget.set_zoom(13)
 
-            MAX_CONNECT_DIST_KM = 0.03
-            BUCKET_SIZE = 0.0002
-            grid = defaultdict(list)
-            for loc in latlons:
-                bucket_key = (int(loc[0] / BUCKET_SIZE), int(loc[1] / BUCKET_SIZE))
-                grid[bucket_key].append(loc)
-
-            graph = defaultdict(list)
-            for bucket_key, bucket_locs in grid.items():
-                for dlat in [-1, 0, 1]:
-                    for dlon in [-1, 0, 1]:
-                        neighbor_key = (bucket_key[0] + dlat, bucket_key[1] + dlon)
-                        if neighbor_key not in grid: continue
-                        for loc1 in bucket_locs:
-                            for loc2 in grid[neighbor_key]:
-                                if loc1 >= loc2: continue
-                                if haversine(loc1, loc2) <= MAX_CONNECT_DIST_KM:
-                                    graph[loc1].append(loc2)
-                                    graph[loc2].append(loc1)
-
-            visited = set()
             line_count = 0
-            for start_loc in latlons:
-                if start_loc in visited: continue
-                component = []
-                bfs_queue = [start_loc]
-                visited.add(start_loc)
-                while bfs_queue:
-                    current = bfs_queue.pop(0)
-                    component.append(current)
-                    for neighbor in graph[current]:
-                        if neighbor not in visited:
-                            visited.add(neighbor)
-                            bfs_queue.append(neighbor)
+            for component in components:
                 if len(component) >= 2:
                     path = self.map_widget.set_path(component, color="#3b82f6", width=3)
                     self.coverage_markers.append(path)
@@ -1752,7 +1843,8 @@ class StreetViewMatcherGUI:
                         marker_color_circle="#3b82f6", marker_color_outside="#1e3a8a")
                     self.coverage_markers.append(marker)
 
-            self._set_status(f"Coverage: {len(locations)} points, {line_count} segments.")
+            sample_note = f" (sampled {len(latlons)} of {len(locations)})" if sampled else ""
+            self._set_status(f"Coverage: {len(locations)} points{sample_note}, {line_count} segments.")
         else:
             if self.search_nets:
                 self.map_widget.set_position(self.search_nets[0][0], self.search_nets[0][1])
@@ -1770,6 +1862,7 @@ class StreetViewMatcherGUI:
                 self.result_elements.append(poly)
 
         self.master.update_idletasks()
+        self.coverage_btn.configure(state='normal', text="Show Coverage Map")
 
     
 
