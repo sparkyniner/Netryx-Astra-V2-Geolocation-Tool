@@ -91,9 +91,20 @@ def get_mast3r_model():
         print(f"[MASt3R] Error loading model: {e}")
         raise e
     
-    # use reduce overhead since mast3r runs a lot so its worth the upfron compile time
+    # use reduce overhead since mast3r runs a lot so its worth the upfron compile time.
+    # torch.compile's inductor backend needs Triton, which has no official Windows
+    # wheel — fall back to eager mode there instead of crashing on first forward pass.
     with autocast(device, dtype=torch.bfloat16):
-        _mast3r_model = torch.compile(_mast3r_model, mode='reduce-overhead')
+        try:
+            import triton
+            _has_triton = True
+        except ImportError:
+            _has_triton = False
+
+        if _has_triton:
+            _mast3r_model = torch.compile(_mast3r_model, mode='reduce-overhead')
+        else:
+            print("[MASt3R] Triton not available, running in eager mode (no torch.compile)")
     return _mast3r_model
 
 def get_mast3r_matches(img1_pil, img2_pil, model, image_size=512):

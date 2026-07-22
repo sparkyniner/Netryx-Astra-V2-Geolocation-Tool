@@ -47,6 +47,11 @@ import time
 import numpy as np
 from pathlib import Path
 
+# Use the Rust-based accelerated downloader (parallel chunked transfer) instead of
+# huggingface_hub's default single-stream requests download, which caps well below
+# what a fast connection can sustain. Must be set before huggingface_hub is imported.
+os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
+
 try:
     from huggingface_hub import (
         HfApi, hf_hub_download, upload_file, create_repo,
