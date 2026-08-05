@@ -44,7 +44,7 @@ echo [OK] Git found
 
 :: Check for CUDA Toolkit (requires Visual Studio Build Toools 2018-2022)
 where nvcc >nul 2>>installer.log
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo [WARNING] CUDA Toolkit was not detected.
     echo [WARNING] Astra can still run using PyTorch CUDA, but MASt3R will use a slower RoPE2D fallback.
     echo [WARNING] Download CUDA Toolkit 12.4 from https://developer.nvidia.com/cuda-12-4-0-download-archive
@@ -61,30 +61,25 @@ if not exist "venv" (
 call venv\Scripts\activate.bat
 echo [OK] Virtual environment activated
 
-:: Force python to install a version of Torch compatible with CUDA
+:: Install a version of PyTorch compatible with the available hardware
 echo Checking for NVIDIA GPU...
 
 nvidia-smi >nul 2>>installer.log
-if %errorlevel%==0 (
-    echo [OK] NVIDIA GPU detected
-    echo Installing CUDA PyTorch...
-    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124 -q
-) else (
+if errorlevel 1 (
     echo [INFO] No NVIDIA GPU detected
     echo Installing CPU PyTorch...
-    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 -q
-):: Force python to install a version of Torch compatible with CUDA
-echo Checking for NVIDIA GPU...
+    python -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 -q
+) else (
+    echo [OK] NVIDIA GPU detected
+    echo Installing CUDA PyTorch...
+    python -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124 -q
+)
 
-nvidia-smi >nul 2>>installer.log
-if %errorlevel%==0 (
-    echo [OK] NVIDIA GPU detected
-    echo Installing CUDA PyTorch...
-    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124 -q
-) else (
-    echo [INFO] No NVIDIA GPU detected
-    echo Installing CPU PyTorch...
-    pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 -q
+if errorlevel 1 (
+    echo [ERROR] PyTorch installation failed.
+    echo Review installer.log for details.
+    pause
+    exit /b 1
 )
 
 :: Install dependencies
