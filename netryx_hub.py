@@ -39,7 +39,9 @@ Usage:
 
 import os
 import json
+import re
 import hashlib
+import io
 import zipfile
 import tempfile
 import shutil
@@ -63,7 +65,7 @@ except ImportError:
 # ─────────────────────────────────────────────────────────────────
 
 HF_ORG = None  # No default org — use tags for discovery!
-BUNDLE_FORMAT_VERSION = "2.0"
+BUNDLE_FORMAT_VERSION = "3.0"
 BUNDLE_EXTENSION = ".netryx"
 
 
@@ -117,10 +119,12 @@ def create_bundle(index_dir, output_path, name, description, center_lat, center_
         raise FileNotFoundError(f"Descriptors not found in {index_dir}")
     if not os.path.exists(meta_path):
         raise FileNotFoundError(f"Metadata not found at {meta_path}")
+    if os.path.exists(pca_path):
+        _validate_index_arrays(pca_path)
 
     # Read full index
     descs = np.load(descs_path, mmap_mode='r')
-    meta = np.load(meta_path, allow_pickle=True)
+    meta = np.load(meta_path, allow_pickle=False)
     lats = meta['lats']
     lons = meta['lons']
 
@@ -238,6 +242,37 @@ def create_bundle(index_dir, output_path, name, description, center_lat, center_
     return output_path, manifest
 
 
+def _validate_index_arrays(source):
+    try:
+        with np.load(source, allow_pickle=False) as arrays:
+            for name in arrays.files:
+                if arrays[name].dtype.hasobject:
+                    raise ValueError("Object arrays are not supported.")
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        raise ValueError("Unsafe or unsupported index arrays. Rebuild and export the index.") from exc
+
+
+def _index_destination(base_dir, manifest):
+    if not isinstance(manifest, dict) or manifest.get("format_version") != BUNDLE_FORMAT_VERSION:
+        raise ValueError("Unsafe or unsupported index format. Rebuild and export the index with this version of Netryx.")
+    index_id = manifest.get("index_id", str(uuid.uuid4()))
+    reserved = {"CON", "PRN", "AUX", "NUL"} | {f"{prefix}{n}" for prefix in ("COM", "LPT") for n in range(1, 10)}
+    if (not isinstance(index_id, str) or
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", index_id) is None or
+            index_id.upper() in reserved):
+        raise ValueError("Invalid index ID: use one bounded name containing letters, digits, underscores or hyphens.")
+    indexes_dir = Path(base_dir).resolve() / "indexes"
+    destination = indexes_dir / index_id
+    if destination.resolve().parent != indexes_dir:
+        raise ValueError("Index destination escapes the index directory.")
+    for name in ("manifest.json", "metadata.npz", "megaloc_pca.pkl", "index_info.txt",
+                 "megaloc_descriptors.npy", "mixvpr_descriptors.npy"):
+        if (destination / name).resolve().parent != destination:
+            raise ValueError("Index file destination escapes the selected index directory.")
+    manifest["index_id"] = index_id
+    return str(destination)
+
+
 def extract_bundle(bundle_path, index_dir):
     """Extract a .netryx bundle into Netryx's index directory.
     
@@ -252,13 +287,11 @@ def extract_bundle(bundle_path, index_dir):
     with zipfile.ZipFile(bundle_path, 'r') as zf:
         # Read manifest first
         manifest = json.loads(zf.read("manifest.json"))
-        # Use manifest UUID if available, otherwise create one for old bundles
-        index_id = manifest.get("index_id", str(uuid.uuid4()))
-
-        index_dir = os.path.join(index_dir, "indexes", index_id)
+        index_dir = _index_destination(index_dir, manifest)
+        for name in ("metadata.npz", "pca_model.pkl"):
+            if name in zf.namelist():
+                _validate_index_arrays(io.BytesIO(zf.read(name)))
         os.makedirs(index_dir, exist_ok=True)
-
-        manifest["index_id"] = index_id
         print(f"[HUB] Extracting: {manifest['name']}")
         print(f"[HUB]   Coverage: ({manifest['center_lat']:.4f}, {manifest['center_lon']:.4f}) "
               f"r={manifest['radius_km']}km")
@@ -545,9 +578,7 @@ class NetryxHub:
             print(f"[HUB]   Could not fetch manifest.json: {e}")
             return None
 
-        index_id = manifest.get("index_id", str(uuid.uuid4()))
-        manifest["index_id"] = index_id
-        index_dir = os.path.join(output_dir, "indexes", index_id)
+        index_dir = _index_destination(output_dir, manifest)
         os.makedirs(index_dir, exist_ok=True)
 
         descriptor_name = ("mixvpr_descriptors.npy"
@@ -567,9 +598,13 @@ class NetryxHub:
                     filename=src_name,
                     repo_type="dataset",
                 )
+                if src_name in ("metadata.npz", "pca_model.pkl"):
+                    _validate_index_arrays(downloaded)
                 dst_path = os.path.join(index_dir, dst_name)
                 shutil.copy2(downloaded, dst_path)
                 print(f"[HUB]   Downloaded {src_name} -> {dst_name}")
+            except ValueError:
+                raise
             except Exception as e:
                 print(f"[HUB]   Skipping {src_name}: {e}")
 

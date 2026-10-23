@@ -913,7 +913,7 @@ def build_compact_index():
     total = 0
     raw_dim = None
     for pf in part_files:
-        data = np.load(pf, allow_pickle=True)
+        data = np.load(pf, allow_pickle=False)
         total += len(data['paths'])
         if raw_dim is None:
             raw_dim = data['descriptors'].shape[1]
@@ -940,7 +940,7 @@ def build_compact_index():
         for pf in part_files:
             if pca_count >= MAX_PCA_SAMPLES:
                 break
-            data = np.load(pf, allow_pickle=True)
+            data = np.load(pf, allow_pickle=False)
             descs = data['descriptors']
             remaining = MAX_PCA_SAMPLES - pca_count
             pca_samples.append(descs[:remaining])
@@ -959,17 +959,11 @@ def build_compact_index():
         del pca_matrix
         
         # Save PCA model for query-time use
-        import pickle
-        with open(pca_path, 'wb') as f:
-            pickle.dump(pca, f)
+        save_pca(pca_path, pca)
         print(f"[INDEX] Saved PCA model to {pca_path}")
         
         # Also load it into megaloc_utils global
-        try:
-            from megaloc_utils import load_pca as _load_pca
-            _load_pca(pca_path)
-        except Exception:
-            pass
+        load_pca(pca_path)
     else:
         pca = None
         print(f"[INDEX] Descriptors already {raw_dim}-dim, no PCA needed")
@@ -985,7 +979,7 @@ def build_compact_index():
     idx = 0
     t0 = time.time()
     for i, pf in enumerate(part_files):
-        data = np.load(pf, allow_pickle=True)
+        data = np.load(pf, allow_pickle=False)
         n = len(data['paths'])
         
         descs = data['descriptors']
@@ -1117,8 +1111,8 @@ def build_compact_index():
     print("[INDEX] Saving metadata...")
     np.savez_compressed(COMPACT_META_PATH,
         lats=lats[valid_idx], lons=lons[valid_idx], headings=headings[valid_idx],
-        panoids=np.array([panoids[i] for i in valid_idx], dtype=object),
-        paths=np.array([all_paths[i] for i in valid_idx], dtype=object)
+        panoids=np.array([panoids[i] for i in valid_idx], dtype=str),
+        paths=np.array([all_paths[i] for i in valid_idx], dtype=str)
     )
 
     COMPACT_INFO_PATH = os.path.join(COMPACT_INDEX_DIR, "index_info.txt")
@@ -1206,7 +1200,7 @@ def load_compact_index():
     t0 = time.time()
     # Use mmap_mode='r' to keep the 7.4GB descriptors on disk and stream them into RAM
     descs = np.load(COMPACT_DESCS_PATH, mmap_mode='r')
-    meta = np.load(COMPACT_META_PATH, allow_pickle=True)
+    meta = np.load(COMPACT_META_PATH, allow_pickle=False)
     metadata = {
         'lats': meta['lats'].copy(), 'lons': meta['lons'].copy(),
         'headings': meta['headings'].copy(),
@@ -2437,7 +2431,7 @@ class StreetViewMatcherGUI:
         try:
             existing_parts = glob.glob(os.path.join(MEGALOC_PARTS_DIR, "megaloc_part_*.npz"))
             for ep in existing_parts:
-                data = np.load(ep, allow_pickle=True)
+                data = np.load(ep, allow_pickle=False)
                 for p in data['paths']:
                     existing_files.add(os.path.basename(str(p)))
                 del data
@@ -2473,7 +2467,7 @@ class StreetViewMatcherGUI:
                     np.savez(
                         part_filename,
                         descriptors=all_descs,
-                        paths=np.array(megaloc_buffer_paths, dtype=object),
+                        paths=np.array(megaloc_buffer_paths, dtype=str),
                         lats=np.array(megaloc_buffer_lats, dtype=np.float32),
                         lons=np.array(megaloc_buffer_lons, dtype=np.float32),
                     )
@@ -2965,7 +2959,7 @@ class StreetViewMatcherGUI:
         # Load only metadata for coverage (skip descriptors entirely)
         if has_active_index() and os.path.exists(COMPACT_META_PATH):
             try:
-                meta = np.load(COMPACT_META_PATH, allow_pickle=True)
+                meta = np.load(COMPACT_META_PATH, allow_pickle=False)
                 lats = meta['lats']
                 lons = meta['lons']
                 for i in range(len(lats)):

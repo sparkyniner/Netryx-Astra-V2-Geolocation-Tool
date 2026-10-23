@@ -22,7 +22,6 @@ import torch.nn.functional as F
 from torch.amp import autocast
 import torchvision.transforms.functional as tfm
 from PIL import Image
-import pickle
 import threading
 
 
@@ -71,7 +70,7 @@ def get_megaloc_model(device=None):
             model = MegaLoc()
             weights_path = os.path.join(os.path.dirname(__file__), "megaloc_weights.pth")
             if os.path.exists(weights_path):
-                state = torch.load(weights_path, map_location='cpu')
+                state = torch.load(weights_path, map_location='cpu', weights_only=True)
                 model.load_state_dict(state)
                 print(f"[MEGALOC] Loaded local weights from {weights_path}")
             else:
@@ -303,20 +302,55 @@ def apply_pca(descriptors):
     return reduced
 
 
-def save_pca(path):
-    """Save fitted PCA model to disk."""
-    if _pca_model is None:
+class _SavedPCA:
+    def __init__(self, components, mean, variance, whiten):
+        self.components_ = components
+        self.mean_ = mean
+        self.explained_variance_ = variance
+        self.whiten = whiten
+        self.n_components_ = components.shape[0]
+
+    def transform(self, descriptors):
+        reduced = descriptors @ self.components_.T
+        reduced -= self.mean_ @ self.components_.T
+        if self.whiten:
+            scale = np.sqrt(self.explained_variance_)
+            reduced /= np.maximum(scale, np.finfo(scale.dtype).eps)
+        return reduced
+
+
+def save_pca(path, model=None):
+    """Save numeric PCA parameters without serialising executable objects."""
+    model = _pca_model if model is None else model
+    if model is None:
         raise RuntimeError("No PCA model to save.")
     with open(path, 'wb') as f:
-        pickle.dump(_pca_model, f)
+        np.savez_compressed(
+            f, format_version=np.array(1), components=model.components_,
+            mean=model.mean_, variance=model.explained_variance_,
+            whiten=np.array(model.whiten),
+        )
     print(f"[MEGALOC-PCA] Saved PCA model to {path}")
 
 
 def load_pca(path):
-    """Load PCA model from disk."""
+    """Load numeric PCA parameters; legacy pickle models are refused."""
     global _pca_model
-    with open(path, 'rb') as f:
-        _pca_model = pickle.load(f)
+    with np.load(path, allow_pickle=False) as data:
+        if (set(data.files) != {"format_version", "components", "mean", "variance", "whiten"} or
+                data["format_version"].shape != () or data["format_version"].item() != 1 or
+                data["whiten"].shape != () or data["whiten"].dtype.kind != "b"):
+            raise ValueError("Unsupported PCA parameter format; rebuild the index.")
+        components = data["components"].copy()
+        mean = data["mean"].copy()
+        variance = data["variance"].copy()
+        whiten = bool(data["whiten"].item())
+    if (components.ndim != 2 or not all(components.shape) or
+            mean.shape != (components.shape[1],) or variance.shape != (components.shape[0],) or
+            any(values.dtype.kind != "f" or not np.isfinite(values).all()
+                for values in (components, mean, variance)) or (variance < 0).any()):
+        raise ValueError("Invalid PCA parameters; rebuild the index.")
+    _pca_model = _SavedPCA(components, mean, variance, whiten)
     print(f"[MEGALOC-PCA] Loaded PCA model from {path} "
           f"(components: {_pca_model.n_components_})")
     return _pca_model

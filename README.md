@@ -175,6 +175,8 @@ Indexes are hosted on [Hugging Face Hub](https://huggingface.co/netryx-hub) as p
 
 ### The .netryx format
 
+Version 3 bundles store PCA parameters as numeric arrays and metadata text as string arrays. Older shared bundles, pickle models and object-array indexes are refused. Rebuild old indexes and export them again; existing index files are not converted automatically.
+
 Index bundles use the `.netryx` format — a ZIP archive containing:
 - PCA-reduced MegaLoc descriptors (the actual search vectors)
 - Coordinate metadata (lat/lon/heading/panoid for every entry)
