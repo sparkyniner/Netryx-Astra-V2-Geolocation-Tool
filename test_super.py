@@ -708,6 +708,11 @@ def grid_points(center, radius, spacing_m):
 
 def get_panoids(points, status_callback=None, max_workers=64):
     import csv
+    # Caps requests in flight: the timeout below starts while a request is
+    # still queued for a pooled connection, so with thousands of grid points
+    # queued at once the ones at the back timed out without being sent and
+    # their panoramas were silently missed (the same bug as the tile download).
+    limits = {}
     async def fetch_one(session, idx, lat, lon, max_attempts=3):
         # 3 attempts + a short timeout: repeated failures are almost always
         # genuinely empty spots (water/no coverage), so extra retries and a long
@@ -717,8 +722,9 @@ def get_panoids(points, status_callback=None, max_workers=64):
         rate_limit_retries = 0  # 429s get their own budget so real points aren't dropped
         while attempt < max_attempts:
             try:
-                async with session.post(PANOIDS_SEARCH_URL, data=body, timeout=15,
-                                        headers={"Content-Type": "application/json+protobuf"}) as resp:
+                async with limits['in_flight'], session.post(
+                        PANOIDS_SEARCH_URL, data=body, timeout=15,
+                        headers={"Content-Type": "application/json+protobuf"}) as resp:
                     status = resp.status
                     text = await resp.text()
                     if status == 429:
@@ -752,6 +758,7 @@ def get_panoids(points, status_callback=None, max_workers=64):
             "Referer": "https://www.google.com/maps/",
         }
         async with aiohttp.ClientSession(connector=connector, headers=_headers) as session:
+            limits['in_flight'] = asyncio.Semaphore(max_workers)
             tasks = []
             for idx, (lat, lon) in enumerate(points):
                 task = asyncio.create_task(fetch_one(session, idx, lat, lon))
@@ -872,8 +879,10 @@ def parse_emb_path(emb_path):
     return None, None
 
 
-def build_compact_index():
+def build_compact_index(status=None):
     """Build compact index from part files + CSV coordinates.
+
+    status: optional fn(message) for progress shown in the GUI.
     
     Auto-applies PCA if descriptors are high-dimensional (e.g., 8448 from MegaLoc).
     """
@@ -920,6 +929,8 @@ def build_compact_index():
         del data
     
     print(f"[INDEX] Total entries: {total}, raw descriptor dim: {raw_dim}")
+    if status:
+        status(f"Building the index from {total:,} views…")
 
     # ── Decide if PCA is needed ──
     needs_pca = raw_dim > INDEX_TARGET_DIM
@@ -950,6 +961,8 @@ def build_compact_index():
         pca_matrix = np.vstack(pca_samples)
         del pca_samples
         print(f"[INDEX] Fitting PCA on {pca_matrix.shape[0]} samples...")
+        if status:
+            status("Building the index: compressing the descriptors (PCA). This step can take a few minutes…")
         
         from sklearn.decomposition import PCA
         pca = PCA(n_components=final_dim, whiten=True)
@@ -1014,6 +1027,8 @@ def build_compact_index():
 
         idx += n
         del data, descs
+        if status:
+            status(f"Building the index: packing {i + 1} / {len(part_files)} files…")
         if (i+1) % 100 == 0:
             print(f"  Loaded {i+1}/{len(part_files)} ({idx} entries) [{time.time()-t0:.0f}s]")
 
@@ -1027,6 +1042,8 @@ def build_compact_index():
 
     # ── Load lat/lon from CSV ──
     print(f"[INDEX] Loading coordinates from {EMB_CSV}...")
+    if status:
+        status("Building the index: adding locations…")
     csv_locations = {}
     csv_full_locations = {}
     if os.path.exists(EMB_CSV):
@@ -1088,6 +1105,8 @@ def build_compact_index():
     # NOTE: fancy-index copy (all_descs[valid_idx].copy()) briefly doubles
     # peak RAM (~2x index size) and gets OOM-killed on multi-GB indexes.
     print("[INDEX] Filtering valid descriptors...")
+    if status:
+        status("Building the index: saving…")
     n_valid = len(valid_idx)
     if n_valid == idx:
         descs_valid = all_descs  # nothing filtered — no copy needed
@@ -1606,7 +1625,11 @@ class StreetViewMatcherGUI:
         self.lat_var = tk.DoubleVar(value=s.get("lat", 40.7132))   # NYC index center
         self.lon_var = tk.DoubleVar(value=s.get("lon", -74.0025))
         self.radius_var = tk.DoubleVar(value=s.get("radius_km", 13.0))
-        self.res_var = tk.IntVar(value=s.get("grid_spacing_m", 300))
+        # Each panorama lookup covers ~50 m around its grid point, so the old
+        # 300 m default skipped most streets; 300 saved from an older version
+        # is treated as that old default.
+        spacing = s.get("grid_spacing_m", 50)
+        self.res_var = tk.IntVar(value=50 if spacing == 300 else spacing)
         self.match_threshold = tk.IntVar(value=50)
         self.crop_fov = tk.IntVar(value=90)
         self.crop_size = tk.IntVar(value=256)
@@ -2416,9 +2439,16 @@ class StreetViewMatcherGUI:
         # scan for nodes
         q.put(('status', f"Generated {len(points)} grid points. Downloading scan nodes..."))
 
+        last_find_msg = [0.0]
+        def finding_status(idx, total):
+            if idx == total or time.time() - last_find_msg[0] >= 0.5:
+                last_find_msg[0] = time.time()
+                q.put(('progress', idx, total))
+                q.put(('status', f"Finding panoramas in the area: {idx:,} / {total:,} spots checked…"))
+
         panoids = get_panoids(
             points,
-            status_callback=lambda idx, total: q.put(('status', f"Scan node fetch {idx}/{total}...")),
+            status_callback=finding_status,
             max_workers=MAX_PANOID_WORKERS
         )
         # Rough speed for a first estimate (the live ETA replaces it once running)
@@ -2477,7 +2507,7 @@ class StreetViewMatcherGUI:
                         lats=np.array(megaloc_buffer_lats, dtype=np.float32),
                         lons=np.array(megaloc_buffer_lons, dtype=np.float32),
                     )
-                    q.put(('status', f"Saved index chunk: {len(megaloc_buffer_paths)} items"))
+                    print(f"[INDEX] Saved index chunk: {len(megaloc_buffer_paths)} items")
                     megaloc_buffer_descs.clear()
                     megaloc_buffer_paths.clear()
                     megaloc_buffer_lats.clear()
@@ -2498,6 +2528,7 @@ class StreetViewMatcherGUI:
                     megaloc_buffer_paths.extend([m['path'] for m in meta])
                     megaloc_buffer_lats.extend([m['lat'] for m in meta])
                     megaloc_buffer_lons.extend([m['lon'] for m in meta])
+                    views_encoded(len(meta))
 
                     if len(megaloc_buffer_paths) >= 5000:
                         save_megaloc_chunk()
@@ -2522,6 +2553,47 @@ class StreetViewMatcherGUI:
                 torch.mps.empty_cache()
             gc.collect()
 
+        # Progress for the two overlapping stages (downloading/stitching on this
+        # thread, encoding on the extractor thread), reported as one line so
+        # the user can see the encoder working after the downloads finish.
+        prog = {'panos': 0, 'stitched': 0, 'views_total': 0, 'views_done': 0, 'skipped': 0,
+                'tiles': (0, 0), 'stitching_done': False, 't_enc0': None, 'last': 0.0}
+        prog_lock = threading.Lock()
+
+        def report(force=False):
+            now = time.time()
+            with prog_lock:
+                if not force and now - prog['last'] < 0.5:
+                    return
+                prog['last'] = now
+                done, total = prog['views_done'], max(prog['views_total'], 1)
+                eta = ""
+                if prog['t_enc0'] and done > 0 and now > prog['t_enc0']:
+                    left = (total - done) / (done / (now - prog['t_enc0']))
+                    eta = (f" · about {left / 60:.0f} min left" if left >= 90 else
+                           " · under 2 min left" if left > 0 else "")
+                if prog['stitching_done']:
+                    msg = f"Encoding views {done:,} / {total:,}{eta}"
+                    if prog['skipped']:
+                        msg += f" · {prog['skipped']} panoramas skipped (missing tiles)"
+                else:
+                    tiles_done, tiles_total = prog['tiles']
+                    fetching = (f" (downloading tiles {tiles_done:,} / {tiles_total:,})"
+                                if tiles_total and tiles_done < tiles_total else "")
+                    encoding = (f"encoding views {done:,} / {total:,}{eta}" if done else
+                                "starting the AI model…" if prog['stitched'] else "")
+                    msg = (f"Downloading & stitching panoramas {prog['stitched']:,} / {prog['panos']:,}{fetching}"
+                           + (f" · {encoding}" if encoding else ""))
+            q.put(('progress', done, total))
+            q.put(('status', msg))
+
+        def views_encoded(n):
+            with prog_lock:
+                if prog['t_enc0'] is None:
+                    prog['t_enc0'] = time.time()
+                prog['views_done'] += n
+            report()
+
         extractor_thread = threading.Thread(target=batch_extractor)
         extractor_thread.start()
 
@@ -2541,6 +2613,9 @@ class StreetViewMatcherGUI:
                 missing_yaws_by_id[panoid_id] = missing
 
         skipped = len(panoids) - len(panoids_needing_download)
+        with prog_lock:
+            prog['panos'] = len(panoids_needing_download)
+            prog['views_total'] = sum(len(v) for v in missing_yaws_by_id.values())
 
         def process_one_panoid(panoid, tiles_data):
             panoid_id = panoid['panoid']
@@ -2584,26 +2659,34 @@ class StreetViewMatcherGUI:
         with concurrent.futures.ThreadPoolExecutor(max_workers=PROJECTION_WORKERS) as executor:
             for start in range(0, len(panoids_needing_download), DOWNLOAD_CHUNK_PANOS):
                 chunk = panoids_needing_download[start:start + DOWNLOAD_CHUNK_PANOS]
-                def _dl_progress(done, total, start=start):
-                    q.put(('status', f"Downloading tiles: panoramas {start + 1}-{start + len(chunk)} "
-                                     f"of {len(panoids_needing_download)} ({done}/{total} tiles)..."))
+                def _dl_progress(done, total):
+                    with prog_lock:
+                        prog['tiles'] = (done, total)
+                    report()
                 chunk_tiles = download_tiles_for_panoids(
                     [p['panoid'] for p in chunk],
                     max_workers=MAX_DOWNLOAD_WORKERS,
                     status_callback=_dl_progress,
                 )
                 results = executor.map(lambda p: process_one_panoid(p, chunk_tiles.get(p['panoid'])), chunk)
-                for ok in results:
+                for p, ok in zip(chunk, results):
                     done_count += 1
-                    incomplete += not ok
                     tracker.update(done_count)
-                    q.put(('progress', done_count, len(panoids)))
-                    q.put(('status', f"Stitching & projecting: {tracker.get_status()}"))
+                    with prog_lock:
+                        prog['stitched'] += 1
+                        if not ok:   # its views will never be encoded
+                            incomplete += 1
+                            prog['skipped'] = incomplete
+                            prog['views_total'] -= len(missing_yaws_by_id.get(p['panoid'], []))
+                    report()
                 del chunk_tiles
         if incomplete:
             q.put(('status', f"Skipped {incomplete} panoramas with missing tiles."))
             print(f"[INDEX] Skipped {incomplete} panoramas with missing tiles")
 
+        with prog_lock:
+            prog['stitching_done'] = True
+        report(force=True)
         crop_queue.put("DONE")
         extractor_thread.join()
 
@@ -2613,7 +2696,13 @@ class StreetViewMatcherGUI:
         # by build_compact_index()'s own fit anyway.
         q.put(('status', f"All embeddings saved ({total_extracted} new). Building index (fits PCA)..."))
 
-        build_compact_index()
+        last_build_msg = [0.0]
+        def build_status(msg):
+            if time.time() - last_build_msg[0] >= 0.5:
+                last_build_msg[0] = time.time()
+                q.put(('status', msg))
+        q.put(('progress', 0, 1))
+        build_compact_index(status=build_status)
         q.put(('status', f"Done! Index ready. {total_extracted} new entries added."))
 
         global _compact_cache
@@ -2870,10 +2959,12 @@ class StreetViewMatcherGUI:
                                     print(f"[Stage 2 MASt3R] Candidate got {m3_score} dense matches")
                                 
                                 match_res = {
-                                    'inliers': m3_score, 
+                                    'inliers': m3_score,
                                     'panoid': pid, 'heading': hdg, 'lat': match.get('lat'), 'lon': match.get('lon'),
                                     'kp1': m3_matches0, 'kp2': m3_matches1, 'matches': np.array([[k, k] for k in range(m3_score)]),
-                                    'emb_path': match.get('emb_path', '')
+                                    'emb_path': match.get('emb_path', ''),
+                                    # kept so clicking this result can show it without re-downloading
+                                    'crop': crop_pil,
                                 }
                                 
                                 if m3_score > 50:
@@ -2941,6 +3032,7 @@ class StreetViewMatcherGUI:
                     print(f"Stage 2 MASt3R error: {e}")
                 
                 if best['inliers'] > 0:
+                    best['match_points'] = best['inliers']   # the real count, for display
                     best['inliers'] = 200 + best['inliers'] // 10
                     self.results_queue.put(best)
                 else:
@@ -3069,7 +3161,7 @@ class StreetViewMatcherGUI:
 
             if best['lat'] is not None and best['lon'] is not None:
                 marker = self.map_widget.set_marker(best['lat'], best['lon'],
-                    text=f"📍 {best['lat']:.6f}, {best['lon']:.6f}\n{best['inliers']} inliers | {best['heading']}°")
+                    text=f"📍 {best['lat']:.6f}, {best['lon']:.6f}\n{best.get('match_points', best['inliers'])} match points | {best['heading']}°")
                 self.result_elements.append(marker)
 
             kp1_scaled = kp2_scaled = None
@@ -3078,6 +3170,7 @@ class StreetViewMatcherGUI:
                 scale2 = np.array([crop_size / best_crop.size[0], crop_size / best_crop.size[1]])
                 kp1_scaled = best['kp1'] * scale1
                 kp2_scaled = best['kp2'] * scale2
+            self._last_query_img = query_img_resize.copy()
             self._last_result = (query_img_resize.copy(), best_crop.copy(), kp1_scaled, kp2_scaled, best['matches'])
             self._render_result_images()
             if kp1_scaled is not None:
@@ -3094,16 +3187,19 @@ class StreetViewMatcherGUI:
             if best['lat'] is not None:
                 self.result_title.config(text=f"{best['lat']:.6f}, {best['lon']:.6f}", fg=TEXT,
                                          font=(UI_FONT, fs(17), 'bold'))
-            self.result_detail.config(text=f"{best['inliers']} match points  ·  camera facing {best['heading']}°  ·  "
-                                           f"more match points means a more certain match")
+            self.result_detail.config(text=f"{best.get('match_points', best['inliers'])} match points  ·  camera facing "
+                                           f"{best['heading']}°  ·  more match points means a more certain match")
 
             # Update results list
             self.res_tree.delete(*self.res_tree.get_children())
             # If result list is provided (from consensus), use it, otherwise just use best
             results_to_show = best.get('all_top_clusters', [best])[:10]
+            self._result_rows = {}
             for i, r in enumerate(results_to_show, 1):
                 coords = f"{r['lat']:.6f}, {r['lon']:.6f}"
-                self.res_tree.insert("", "end", values=(i, r['inliers'], coords))
+                points = r.get('match_points', r['inliers']) if r is best else r['inliers']
+                iid = self.res_tree.insert("", "end", values=(i, points, coords))
+                self._result_rows[iid] = (i, r)
         else:
             self._set_status("No match found.")
             self._reset_results("No confident match found.",
@@ -3124,6 +3220,29 @@ class StreetViewMatcherGUI:
             lat, lon = map(float, val[2].split(", "))
             self.map_widget.set_position(lat, lon)
             self.map_widget.set_zoom(18)
+            self._show_result_comparison(item[0])
+
+    def _show_result_comparison(self, iid):
+        """Show the selected result: your photo next to the Street View view it
+        was matched against, with the matching points joined by lines."""
+        rank, r = getattr(self, '_result_rows', {}).get(iid, (None, None))
+        query = getattr(self, '_last_query_img', None)
+        crop = r.get('crop') if r else None
+        if crop is None or query is None:
+            self._set_status("No comparison image is stored for this result.")
+            return
+        kp1 = kp2 = None
+        if r.get('kp1') is not None and r.get('kp2') is not None and r.get('matches') is not None:
+            kp1, kp2 = np.asarray(r['kp1']), np.asarray(r['kp2'])
+        self._last_result = (query.copy(), crop.copy(), kp1, kp2, r.get('matches'))
+        self._render_result_images()
+        if kp1 is not None:
+            self.match_lines_toggle.pack(anchor='w', pady=(8, 0), before=self._res_btns)
+        else:
+            self.match_lines_toggle.pack_forget()
+        points = r.get('match_points', r.get('inliers'))
+        self.result_title.config(text=f"{r['lat']:.6f}, {r['lon']:.6f}", fg=TEXT, font=(UI_FONT, fs(17), 'bold'))
+        self.result_detail.config(text=f"Result #{rank}  ·  {points} match points  ·  camera facing {r.get('heading')}°")
 
     def copy_res_coords(self):
         coords = self._selected_or_best_coords()
