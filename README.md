@@ -159,6 +159,15 @@ python test_super.py
 
 What's happening under the hood: the app generates a grid of points within the radius, finds all available panorama locations, downloads each panorama as tiles and stitches them, crops each panorama at multiple heading angles, extracts MegaLoc descriptors for each crop, fits PCA on all descriptors, and builds a compact search index.
 
+### Upgrading data from an earlier version
+
+Earlier versions saved part files and index metadata in a form that can only be read by unpickling, which the app no longer does, so that data cannot be loaded or converted. The app names the old files when it finds them.
+
+1. Move or delete the old part files in `netryx_data/megaloc_parts` (and `netryx_data/mixvpr_parts` if you used MixVPR), or in your own data folder if it is elsewhere.
+2. Set mode to **Create** and run your area again. This re-crawls it and builds a new index.
+3. Old index folders under `netryx_data/indexes/` can then be deleted. Indexes downloaded or imported before this version need to be republished in the new format and downloaded again.
+
+
 ### Option C: Import an index file from someone
 
 Got a `.netryx` file from a friend, a Discord server, or a download link? Just click **📥 Import Index** in the app, select the file, and you're ready to search. No account needed, no internet needed — it's a fully offline workflow.
@@ -175,7 +184,7 @@ Indexes are hosted on [Hugging Face Hub](https://huggingface.co/netryx-hub) as p
 
 ### The .netryx format
 
-Version 3 bundles store PCA parameters as numeric arrays and metadata text as string arrays. Older shared bundles, pickle models and object-array indexes are refused. Rebuild old indexes and export them again; existing index files are not converted automatically.
+Version 3 bundles store PCA parameters as numeric arrays and metadata text as string arrays. Older shared bundles, pickle models and object-array indexes are refused. Rebuild old indexes (see [Upgrading data from an earlier version](#upgrading-data-from-an-earlier-version)) and export them again.
 
 Index bundles use the `.netryx` format — a ZIP archive containing:
 - PCA-reduced MegaLoc descriptors (the actual search vectors)

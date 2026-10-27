@@ -336,7 +336,13 @@ def save_pca(path, model=None):
 def load_pca(path):
     """Load numeric PCA parameters; legacy pickle models are refused."""
     global _pca_model
-    with np.load(path, allow_pickle=False) as data:
+    try:
+        loaded = np.load(path, allow_pickle=False)
+    except ValueError as error:
+        raise ValueError(f"{path} is not a NumPy PCA parameter file (older versions "
+                         f"saved a pickled model, which is no longer loaded); "
+                         f"rebuild the index.") from error
+    with loaded as data:
         if (set(data.files) != {"format_version", "components", "mean", "variance", "whiten"} or
                 data["format_version"].shape != () or data["format_version"].item() != 1 or
                 data["whiten"].shape != () or data["whiten"].dtype.kind != "b"):

@@ -253,7 +253,7 @@ class IndexSafetyTests(unittest.TestCase):
              "INDEXES_DIR": str(self.output), "MEGALOC_PARTS_DIR": str(parts),
              "INDEX_TARGET_DIM": 1, "EMB_CSV": str(self.root / "absent.csv"),
              "save_pca": namespace["save_pca"], "load_pca": namespace["load_pca"],
-             "write_index_manifest": writer,
+             "write_index_manifest": writer, "legacy_files": lambda paths: [],
              "haversine_vec": lambda *args: np.zeros(2)})
         with mock.patch.dict(sys.modules,
                 {"sklearn": SimpleNamespace(),
@@ -334,7 +334,7 @@ class IndexSafetyTests(unittest.TestCase):
         namespace = source_functions("test_super.py", {"load_compact_index"},
             {"np": np, "os": os, "time": time, "_compact_cache": None,
              "COMPACT_DESCS_PATH": str(descriptors), "COMPACT_META_PATH": str(metadata),
-             "has_active_index": lambda: True})
+             "has_active_index": lambda: True, "legacy_files": lambda paths: []})
         with self.assertRaises(ValueError):
             namespace["load_compact_index"]()
         self.assertIsNone(namespace["_compact_cache"])

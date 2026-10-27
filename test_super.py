@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import filedialog, ttk
 from PIL import Image, ImageTk, ImageDraw, ImageOps, ImageFilter
 import numpy as np
+from numpy.lib import format as npy_format
 import torch
 import re
 import math
@@ -21,6 +22,7 @@ import json
 import uuid
 import random
 import glob
+import zipfile
 import cv2
 try:
     import kornia.feature as KF
@@ -779,6 +781,40 @@ def parse_emb_path(emb_path):
     return None, None
 
 
+def legacy_files(paths):
+    """Return the .npz files that hold object arrays, which need pickle to load.
+
+    Only the array headers are read, so nothing is unpickled. Unreadable
+    files are left for the normal loader to report.
+    """
+    readers = {(1, 0): npy_format.read_array_header_1_0,
+               (2, 0): npy_format.read_array_header_2_0}
+    legacy = []
+    for path in paths:
+        try:
+            with zipfile.ZipFile(path) as archive:
+                for member in archive.namelist():
+                    with archive.open(member) as member_file:
+                        reader = readers.get(npy_format.read_magic(member_file))
+                        if reader is not None and reader(member_file)[2].hasobject:
+                            legacy.append(path)
+                            break
+        except (OSError, ValueError, zipfile.BadZipFile):
+            continue
+    return legacy
+
+
+def legacy_parts_message(paths):
+    """Explain what to do with part files saved by older versions."""
+    folders = sorted({os.path.dirname(os.path.abspath(p)) for p in paths})
+    names = ", ".join(os.path.basename(p) for p in sorted(paths)[:3])
+    more = f" and {len(paths) - 3} more" if len(paths) > 3 else ""
+    return (f"{len(paths)} part file(s) in {', '.join(folders)} ({names}{more}) were "
+            f"saved by an older version and can only be read by unpickling, which "
+            f"this version no longer does. Move or delete them, then run Create "
+            f"again for your area to re-crawl it and rebuild the index.")
+
+
 def build_compact_index():
     """Build compact index from part files + CSV coordinates.
     
@@ -815,6 +851,11 @@ def build_compact_index():
         return False
 
     print(f"[INDEX] Found {len(part_files)} part files")
+
+    legacy_parts = legacy_files(part_files)
+    if legacy_parts:
+        print(f"[INDEX] ERROR: {legacy_parts_message(legacy_parts)}")
+        return False
 
     # ── Pass 1: Count total entries and detect descriptor dimension ──
     total = 0
@@ -1105,6 +1146,12 @@ def load_compact_index():
         return None, None
     print("[INDEX] Loading compact index (memory-mapped)...")
     t0 = time.time()
+    if legacy_files([COMPACT_META_PATH]):
+        raise ValueError(
+            f"{COMPACT_META_PATH} was saved by an older version and can only "
+            f"be read by unpickling, which this version no longer does. "
+            f"Rebuild this index with Create, or download it again once it "
+            f"has been republished.")
     # Use mmap_mode='r' to keep the 7.4GB descriptors on disk and stream them into RAM
     descs = np.load(COMPACT_DESCS_PATH, mmap_mode='r')
     meta = np.load(COMPACT_META_PATH, allow_pickle=False)
@@ -2123,8 +2170,16 @@ class StreetViewMatcherGUI:
 
         # Load existing embeddings for skip logic (from part files, not CSV — crash-safe)
         existing_files = set()
+        existing_parts = glob.glob(os.path.join(MEGALOC_PARTS_DIR, "megaloc_part_*.npz"))
+        legacy_parts = legacy_files(existing_parts)
+        if legacy_parts:
+            # Without these entries every panorama would be fetched and
+            # embedded again, and the index build would then fail anyway.
+            message = legacy_parts_message(legacy_parts)
+            print(f"[INDEX] ERROR: {message}")
+            q.put(('status', message))
+            return
         try:
-            existing_parts = glob.glob(os.path.join(MEGALOC_PARTS_DIR, "megaloc_part_*.npz"))
             for ep in existing_parts:
                 data = np.load(ep, allow_pickle=False)
                 for p in data['paths']:
