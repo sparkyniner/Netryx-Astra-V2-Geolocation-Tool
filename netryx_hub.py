@@ -281,10 +281,12 @@ def extract_bundle(bundle_path, index_dir):
 
         for src_name, dst_name in file_mapping.items():
             if src_name in zf.namelist():
-                data = zf.read(src_name)
                 dst_path = os.path.join(index_dir, dst_name)
-                with open(dst_path, 'wb') as f:
-                    f.write(data)
+                # Stream in 16 MB pieces. zf.read() held the whole file in RAM,
+                # and a city-scale descriptors file (~11 GB for New York 13 km)
+                # pushed a 16 GB Mac into swap until it stopped responding.
+                with zf.open(src_name) as src, open(dst_path, 'wb') as f:
+                    shutil.copyfileobj(src, f, length=16 * 1024 * 1024)
                 print(f"[HUB]   Extracted {src_name} -> {dst_name}")
 
     print(f"[HUB] Bundle loaded. Ready to search.")
@@ -586,9 +588,9 @@ class NetryxHub:
 
     def upload(self, index_dir, city, radius_km, center_lat, center_lon,
                description=None, tags=None, heading_step=90, crop_fov=90,
-               crop_size=256, private=False, token=None):
+               crop_size=256, private=False, token=None, encoder=None):
         """Upload a local index to Hugging Face Hub.
-        
+
         Args:
             index_dir: Directory containing your computed index
             city: City name (used for repo name)
@@ -597,7 +599,9 @@ class NetryxHub:
             description: Optional description
             tags: Optional list of tags
             private: Whether to make the repo private
-            
+            encoder: Accepted for callers that pass it; the descriptor model is
+                detected from the index files (see create_bundle)
+
         Returns:
             URL of the created dataset
         """
